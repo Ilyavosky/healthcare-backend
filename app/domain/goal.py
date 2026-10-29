@@ -41,7 +41,7 @@ class Goal:
             ):
                 raise DomainError(
                     ErrorCode.INVALID_GOAL_VALUE,
-                    "K debe ser un entero mayor que 0",
+                    "El horizonte debe ser un entero mayor que 0",
                     "goal.value",
                 )
         if self.type == GoalType.SUBSET:
