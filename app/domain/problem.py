@@ -4,6 +4,7 @@ from app.domain.goal import Goal, GoalType
 from app.domain.patient import Patient
 
 State = frozenset[str]
+Successor = tuple[State | str, int, str | None]
 
 
 class Problem:
@@ -65,3 +66,64 @@ class Problem:
         self.start_state = start_attended
         self.t0 = t0
         self._time_cache: dict[State, int] = {}
+
+    def initial_state(self) -> State:
+        return self.start_state
+
+    def patient(self, patient_id: str) -> Patient:
+        return self.by_id[patient_id]
+
+    def pending(self, state: State) -> list[Patient]:
+        return [p for p in self.patients if p.patient_id not in state]
+
+    def time_of(self, state: State) -> int:
+        if state not in self._time_cache:
+            attended_now = state - self.start_state
+            self._time_cache[state] = self.t0 + sum(
+                self.by_id[pid].duration for pid in attended_now
+            )
+        return self._time_cache[state]
+
+    def horizon_end(self) -> int | None:
+        if self.goal.type != GoalType.HORIZON:
+            return None
+        return self.t0 + self.goal.value
+
+    def fits_horizon(self, patient: Patient, t: int) -> bool:
+        end = self.horizon_end()
+        return end is None or t + patient.duration <= end
+
+    def is_goal(self, state: State) -> bool:
+        pending = self.pending(state)
+        goal_type = self.goal.type
+        if goal_type == GoalType.ALL:
+            return not pending
+        if goal_type == GoalType.CRITICAL:
+            return all(p.level > CRITICAL_MAX_LEVEL for p in pending)
+        if goal_type == GoalType.K:
+            return len(state) - len(self.start_state) == self.goal.value
+        if goal_type == GoalType.HORIZON:
+            t = self.time_of(state)
+            return not any(self.fits_horizon(p, t) for p in pending)
+        return self.goal.value <= state
+
+    def closing_order(self, state: State) -> list[Patient]:
+        return sorted(self.pending(state), key=lambda p: (p.level, -p.wait))
+
+    def closing_cost(self, state: State) -> int:
+        t = self.time_of(state)
+        total = 0
+        for patient in self.closing_order(state):
+            total += patient.penalty_at(t)
+            t += patient.duration
+        return total
+
+    def successors(self, state: State) -> list[Successor]:
+        if self.is_goal(state):
+            return [(GOAL_NODE, self.closing_cost(state), None)]
+        t = self.time_of(state)
+        return [
+            (state | {p.patient_id}, p.penalty_at(t), p.patient_id)
+            for p in self.pending(state)
+            if self.fits_horizon(p, t)
+        ]
