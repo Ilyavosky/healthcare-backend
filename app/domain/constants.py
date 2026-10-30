@@ -12,8 +12,12 @@ LEVEL_NAMES: dict[int, str] = {
 MIN_LEVEL: int = 1
 MAX_LEVEL: int = 5
 
+IMMEDIATE_LEVEL: int = 1
 CRITICAL_MAX_LEVEL: int = 2
 MAX_PATIENTS: int = 15
 NEAR_LIMIT_MARGIN: int = 10
+
+MIN_DOCTORS: int = 1
+MAX_DOCTORS: int = 3
 
 GOAL_NODE: str = "META"
