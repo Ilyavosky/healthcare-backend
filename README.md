@@ -15,6 +15,10 @@ API y motor de búsqueda del proyecto **Healthcare: Priorización de Urgencias M
 - **Algoritmos:** `ucs` (h = 0), `astar_simple` (penalización de los pendientes si empezaran en `l1`) y `astar` (la anterior más la espera mínima extra: el k-ésimo en empezar lo hace como pronto en `min(L[k], l1 + d_min)` si k < M, o tras las ⌊k/M⌋ consultas más cortas si k ≥ M). Las dos heurísticas son admisibles; `astar` puede ser inconsistente con varios médicos, por eso el motor reabre nodos cerrados cuando encuentra un g mejor (`SearchResult.reopened`) y conserva la optimalidad.
 - **A\* ponderado:** `search(..., weight=ε)` usa f = g + ε·h; termina mucho antes en salas grandes y garantiza costo ≤ ε · óptimo.
 - **Escenarios:** `generate_patients(n, seed)` (reproducible, probabilidades y rangos por nivel) y `patients_to_csv` / `patients_from_csv` con columnas `patient_id,level,wait,duration`.
+- **Línea base:** `level_order` atiende por nivel, desempata por mayor espera y luego por orden de captura, con el médico que se libera primero y el mismo cierre. `order_cost` evalúa cualquier orden.
+- **Agenda:** `build_schedule(problem, order)` da, por paciente, médico (numerados en el orden en que se capturaron sus minutos de liberación), inicio, fin, retraso, penalización y si quedó fuera de la meta. Siempre suma lo mismo que el costo de la búsqueda.
+- **Alertas:** `ALREADY_LATE`, `EXCEEDS_LIMIT`, `NEAR_LIMIT` (margen de 10 min), `LEFT_OUT` y `LEFT_OUT_CRITICAL`. Solo se devuelve el código y los minutos; los textos los pone el frontend.
+- **Servicio `solve`:** corre los algoritmos pedidos (por defecto `ucs` y `astar`) y la línea base, y calcula `same_cost`, la reducción de nodos contra UCS y la brecha de la base contra el óptimo. Con `time_limit_ms` y `fallback_weights`, si A\* no termina reintenta con A\* ponderado e informa el ε usado. Si ningún algoritmo termina, devuelve la agenda de la línea base.
 - **Límite de búsqueda:** `search` acepta `max_expanded` y `time_limit_ms` (por defecto sin límite). No restringen la entrada; detienen una corrida que crece demasiado con `SearchLimitError`, que reporta los nodos expandidos.
 
 ## Supuestos

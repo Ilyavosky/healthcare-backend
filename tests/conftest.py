@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import pytest
 
 from app.domain.patient import Patient
@@ -31,3 +34,14 @@ def p4() -> Patient:
 @pytest.fixture
 def four_patients(example_patients: list[Patient], p4: Patient) -> list[Patient]:
     return [*example_patients, p4]
+
+
+@pytest.fixture
+def scenario_12() -> dict:
+    path = Path(__file__).parent / "fixtures" / "scenario_12.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+@pytest.fixture
+def scenario_12_patients(scenario_12: dict) -> list[Patient]:
+    return [Patient(**row) for row in scenario_12["patients"]]

@@ -1,0 +1,91 @@
+{
+  "description": "Escenario de 12 pacientes de la guía (sección 8.2). Valores con la regla N1 activa.",
+  "patients": [
+    {
+      "patient_id": "P1",
+      "level": 2,
+      "wait": 5,
+      "duration": 18
+    },
+    {
+      "patient_id": "P2",
+      "level": 2,
+      "wait": 8,
+      "duration": 21
+    },
+    {
+      "patient_id": "P3",
+      "level": 3,
+      "wait": 13,
+      "duration": 18
+    },
+    {
+      "patient_id": "P4",
+      "level": 2,
+      "wait": 25,
+      "duration": 23
+    },
+    {
+      "patient_id": "P5",
+      "level": 1,
+      "wait": 3,
+      "duration": 30
+    },
+    {
+      "patient_id": "P6",
+      "level": 3,
+      "wait": 49,
+      "duration": 19
+    },
+    {
+      "patient_id": "P7",
+      "level": 5,
+      "wait": 190,
+      "duration": 10
+    },
+    {
+      "patient_id": "P8",
+      "level": 4,
+      "wait": 115,
+      "duration": 6
+    },
+    {
+      "patient_id": "P9",
+      "level": 4,
+      "wait": 106,
+      "duration": 15
+    },
+    {
+      "patient_id": "P10",
+      "level": 2,
+      "wait": 12,
+      "duration": 31
+    },
+    {
+      "patient_id": "P11",
+      "level": 3,
+      "wait": 41,
+      "duration": 15
+    },
+    {
+      "patient_id": "P12",
+      "level": 3,
+      "wait": 41,
+      "duration": 25
+    }
+  ],
+  "expected": {
+    "1": {
+      "optimal": 4893,
+      "baseline": 5281
+    },
+    "2": {
+      "optimal": 1938,
+      "baseline": 2112
+    },
+    "3": {
+      "optimal": 979,
+      "baseline": 1088
+    }
+  }
+}

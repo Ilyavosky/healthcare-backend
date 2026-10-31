@@ -97,6 +97,7 @@ class Problem:
         self.goal = goal
         self.t0 = t0
         self.doctors = doctors
+        self.doctors_free_at = tuple(free_at)
         self.critical_first = critical_first
         useful = min(doctors, len(pending_ids))
         self.start_state = State(start_attended, tuple(sorted(free_at))[:useful])
