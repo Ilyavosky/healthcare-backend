@@ -4,8 +4,6 @@ from app.domain.constants import (
     CRITICAL_MAX_LEVEL,
     GOAL_NODE,
     IMMEDIATE_LEVEL,
-    MAX_DOCTORS,
-    MAX_PATIENTS,
     MIN_DOCTORS,
 )
 from app.domain.errors import DomainError, ErrorCode
@@ -36,16 +34,9 @@ class Problem:
         doctors: int = 1,
         doctors_free_at: tuple[int, ...] | None = None,
         critical_first: bool = True,
-        max_patients: int = MAX_PATIENTS,
     ) -> None:
         self.patients = tuple(patients)
         self.by_id = {p.patient_id: p for p in patients}
-        if len(patients) > max_patients:
-            raise DomainError(
-                ErrorCode.TOO_MANY_PATIENTS,
-                f"Máximo {max_patients} pacientes",
-                "patients",
-            )
         if len(self.by_id) != len(patients):
             raise DomainError(
                 ErrorCode.DUPLICATE_PATIENT_ID,
@@ -84,10 +75,10 @@ class Problem:
                 "Hay pacientes que aún no llegaban en t0",
                 "patients",
             )
-        if doctors < MIN_DOCTORS or doctors > MAX_DOCTORS:
+        if doctors < MIN_DOCTORS:
             raise DomainError(
                 ErrorCode.INVALID_DOCTORS,
-                f"El número de médicos debe estar entre {MIN_DOCTORS} y {MAX_DOCTORS}",
+                f"Debe haber al menos {MIN_DOCTORS} médico",
                 "doctors",
             )
         free_at = doctors_free_at if doctors_free_at is not None else (t0,) * doctors
@@ -107,7 +98,8 @@ class Problem:
         self.t0 = t0
         self.doctors = doctors
         self.critical_first = critical_first
-        self.start_state = State(start_attended, tuple(sorted(free_at)))
+        useful = min(doctors, len(pending_ids))
+        self.start_state = State(start_attended, tuple(sorted(free_at))[:useful])
 
     def initial_state(self) -> State:
         return self.start_state

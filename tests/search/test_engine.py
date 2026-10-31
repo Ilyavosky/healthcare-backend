@@ -6,7 +6,12 @@ from app.domain.constants import GOAL_NODE
 from app.domain.goal import Goal, GoalType
 from app.domain.patient import Patient
 from app.domain.problem import Problem, State
-from app.search.engine import NoSolutionError, SearchResult, search
+from app.search.engine import (
+    NoSolutionError,
+    SearchLimitError,
+    SearchResult,
+    search,
+)
 from app.search.heuristics import HEURISTICS, AlgorithmName, zero
 
 SCENARIO_12 = [
@@ -152,6 +157,54 @@ def test_no_solution_raises(example_patients, monkeypatch):
     monkeypatch.setattr(problem, "successors", lambda state: [])
     with pytest.raises(NoSolutionError):
         search(problem)
+
+
+def test_expansion_limit_stops_search(example_patients):
+    problem = Problem(example_patients, Goal(GoalType.ALL), critical_first=False)
+    with pytest.raises(SearchLimitError) as error:
+        search(problem, max_expanded=4)
+    assert error.value.expanded == 4
+    assert error.value.max_frontier >= 1
+
+
+def test_expansion_limit_not_reached_returns_solution(example_patients):
+    problem = Problem(example_patients, Goal(GoalType.ALL), critical_first=False)
+    assert search(problem, max_expanded=9).cost == 280
+
+
+def test_time_limit_stops_search(example_patients):
+    problem = Problem(example_patients, Goal(GoalType.ALL))
+    with pytest.raises(SearchLimitError):
+        search(problem, time_limit_ms=0)
+
+
+def test_no_limits_by_default(example_patients):
+    problem = Problem(example_patients, Goal(GoalType.ALL))
+    assert search(problem).cost == 280
+
+
+@pytest.mark.parametrize("extra", [1, 5, 40])
+@pytest.mark.parametrize("seed", range(1, 6))
+def test_more_doctors_than_patients_equals_one_doctor_each(seed, extra):
+    patients = random_patients(seed, 5)
+    exact = search(Problem(patients, Goal(GoalType.ALL), doctors=5))
+    many = search(Problem(patients, Goal(GoalType.ALL), doctors=5 + extra))
+    assert many.cost == exact.cost
+    assert many.expanded == exact.expanded
+
+
+def test_more_doctors_than_patients_costs_only_current_delay(example_patients):
+    result = search(Problem(example_patients, Goal(GoalType.ALL), doctors=10))
+    expected = sum(p.penalty_at(0) for p in example_patients)
+    assert result.cost == expected
+
+
+def test_large_room_is_accepted_and_limit_keeps_it_bounded():
+    patients = random_patients(99, 60)
+    problem = Problem(patients, Goal(GoalType.ALL), doctors=8)
+    with pytest.raises(SearchLimitError) as error:
+        search(problem, max_expanded=2000)
+    assert error.value.expanded == 2000
 
 
 @pytest.mark.parametrize("seed", range(1, 16))

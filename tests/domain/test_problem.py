@@ -282,14 +282,6 @@ def test_closing_order_keeps_capture_order_on_full_tie():
     "patients_factory, goal, start, t0, code, field",
     [
         (
-            lambda ps: ps * 6,
-            Goal(GoalType.ALL),
-            EMPTY,
-            0,
-            ErrorCode.TOO_MANY_PATIENTS,
-            "patients",
-        ),
-        (
             lambda ps: ps + [Patient("P1", 3, 0, 5)],
             Goal(GoalType.ALL),
             EMPTY,
@@ -352,7 +344,7 @@ def test_constructor_validations(
     "doctors, free_at, field",
     [
         (0, None, "doctors"),
-        (4, None, "doctors"),
+        (-2, None, "doctors"),
         (2, (0,), "doctors_free_at"),
         (2, (0, -5), "doctors_free_at"),
     ],
@@ -369,13 +361,46 @@ def test_invalid_doctors(example_patients, doctors, free_at, field):
     assert error.value.field == field
 
 
+def test_accepts_any_number_of_patients():
+    patients = [Patient(f"P{i}", (i % 5) + 1, i, 10) for i in range(1, 61)]
+    problem = Problem(patients, Goal(GoalType.ALL))
+    assert len(problem.pending(problem.initial_state())) == 60
+
+
+def test_accepts_any_number_of_doctors(example_patients):
+    problem = Problem(example_patients, Goal(GoalType.ALL), doctors=50)
+    assert problem.doctors == 50
+
+
+def test_only_doctors_that_can_be_used_are_kept_in_state(example_patients):
+    problem = Problem(
+        example_patients,
+        Goal(GoalType.ALL),
+        t0=10,
+        doctors=5,
+        doctors_free_at=(40, 10, 90, 25, 10),
+    )
+    assert problem.initial_state().free_at == (10, 10, 25)
+
+
+def test_kept_doctors_depend_on_pending_not_on_list_size(example_patients):
+    problem = Problem(
+        example_patients,
+        Goal(GoalType.ALL),
+        frozenset({"P3"}),
+        30,
+        doctors=4,
+    )
+    assert problem.initial_state().free_at == (30, 30)
+
+
 def test_patient_arriving_after_turn_start_is_valid_once_arrived(example_patients):
     patients = [Patient("P4", 3, -20, 5)] + example_patients
     problem = Problem(patients, Goal(GoalType.ALL), EMPTY, 20)
     assert problem.patient("P4").wait_at(20) == 0
 
 
-@pytest.mark.parametrize("doctors", [1, 2, 3])
+@pytest.mark.parametrize("doctors", [1, 2, 3, 6])
 @pytest.mark.parametrize("critical_first", [True, False])
 @pytest.mark.parametrize(
     "goal",
@@ -393,6 +418,7 @@ def test_every_reachable_goal_state_only_closes(
     problem = Problem(
         four_patients, goal, doctors=doctors, critical_first=critical_first
     )
+    useful_doctors = min(doctors, len(four_patients))
     seen = {problem.initial_state()}
     stack = [problem.initial_state()]
     while stack:
@@ -406,7 +432,7 @@ def test_every_reachable_goal_state_only_closes(
             continue
         for next_state, cost, _ in successors:
             assert cost >= 0
-            assert len(next_state.free_at) == doctors
+            assert len(next_state.free_at) == useful_doctors
             if next_state not in seen:
                 seen.add(next_state)
                 stack.append(next_state)

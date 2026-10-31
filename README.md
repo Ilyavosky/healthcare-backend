@@ -4,7 +4,7 @@ API y motor de búsqueda del proyecto **Healthcare: Priorización de Urgencias M
 
 ## Modelo
 
-- **M médicos** (1 a 3) atienden en paralelo a **N pacientes** (hasta 15) de una sala de urgencias.
+- **M médicos** atienden en paralelo a **N pacientes** de una sala de urgencias. No hay tope para M ni para N; si M es mayor que los pendientes, en el estado solo se guardan tantos médicos como pacientes pendientes, porque los demás nunca se usan.
 - Cada paciente tiene nivel de triage (1 Crítico a 5 No urgente), minutos que ya esperaba al iniciar el turno (`wait`) y duración estimada de consulta (`duration`).
 - Penalización de atender a `p` en el minuto `t`: `peso(nivel) · max(0, wait + t − límite(nivel))`.
 - **Estado:** `(attended, free_at)` = pacientes ya atendidos y minuto en que se libera cada médico, ordenado.
@@ -12,6 +12,7 @@ API y motor de búsqueda del proyecto **Healthcare: Priorización de Urgencias M
 - **Inicio modificable:** pacientes ya atendidos, minuto actual `t0` y minuto en que se libera cada médico.
 - **Meta modificable:** todos, críticos (N1–N2), K pacientes, horizonte H o subconjunto. Al cumplirse, los pendientes se cobran con el cierre por protocolo de triage.
 - **Regla de seguridad (`critical_first`):** si hay un Nivel 1 pendiente que cabe, solo se puede atender a un Nivel 1.
+- **Límite de búsqueda:** `search` acepta `max_expanded` y `time_limit_ms` (por defecto sin límite). No restringen la entrada; detienen una corrida que crece demasiado con `SearchLimitError`, que reporta los nodos expandidos.
 
 ## Supuestos
 
