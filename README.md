@@ -26,13 +26,13 @@ API y motor de búsqueda del proyecto **Healthcare: Priorización de Urgencias M
 
 Médicos idénticos; el nivel de triage es un dato de entrada; duraciones fijas y sin interrupción; un médico libre siempre atiende; el entorno es una foto de la sala en `t0` y se replanifica cuando cambia.
 
-## API (Fase 6)
+## API
 
 `uv run fastapi dev app/main.py` y abrir `http://localhost:8000/docs`. Todo el JSON va en camelCase.
 
 | Método | Ruta | Qué hace |
 |---|---|---|
-| GET | `/api/health` | `{ "status": "ok" }` |
+| GET | `/api/health` | `{ "status": "ok", "database": "configured" \| "not_configured" }` |
 | GET | `/api/config` | Niveles (nombre, peso, límite), tipos de meta, algoritmos, códigos de alerta, columnas del CSV y valores por defecto |
 | POST | `/api/scenarios/generate` | `{ n, seed? }` → `{ seed, patients }` reproducible |
 | POST | `/api/scenarios/csv` | Archivo CSV (`multipart/form-data`, campo `file`) → `{ patients }` |
@@ -51,12 +51,45 @@ Médicos idénticos; el nivel de triage es un dato de entrada; duraciones fijas 
 
 **Errores:** siempre `{ code, message, field }`; 422 para validación (`VALIDATION_ERROR` con mensaje en español) y para los errores del dominio.
 
+### Salas en Supabase
+
+| Método | Ruta | Qué hace |
+|---|---|---|
+| POST | `/api/rooms` | `{ name, shiftStartedAt?, doctors }` → 201. El inicio del turno es ahora si no se manda |
+| GET | `/api/rooms` | Salas, la más reciente primero |
+| GET | `/api/rooms/{roomId}` | Sala, pacientes y `snapshot` (t0, médicos ocupados, espera actual de cada paciente) |
+| PATCH | `/api/rooms/{roomId}` | Cambia `name`, `shiftStartedAt`, `doctors` o `status` (`open` / `closed`) |
+| DELETE | `/api/rooms/{roomId}` | Borra la sala con sus pacientes y corridas |
+| POST | `/api/rooms/{roomId}/patients` | `{ label?, level, durationMin, arrivedAt? }` → 201. Sin `label` se asigna `P1`, `P2`…; sin `arrivedAt`, ahora |
+| PATCH | `/api/rooms/{roomId}/patients/{patientId}` | Edita datos; `attendedAt: null` lo regresa a la espera |
+| POST | `/api/rooms/{roomId}/patients/{patientId}/attend` | `{ doctor?, at? }`; con 1 médico, `doctor` es opcional |
+| DELETE | `/api/rooms/{roomId}/patients/{patientId}` | Elimina un paciente capturado por error |
+| POST | `/api/rooms/{roomId}/solve` | Igual que `/api/solve` (meta, algoritmos, `criticalFirst`, `includeTrace`, `timeLimitMs`, `allowApproximate`) más `at?`; guarda la corrida y responde 201 con `solveId`, `t0`, `doctorsFreeAt` y `notArrived` |
+| GET | `/api/rooms/{roomId}/solves` | Historial de corridas (resumen) |
+| GET | `/api/rooms/{roomId}/solves/{solveId}` | Corrida completa: entrada en minutos, base, alertas y resultado de cada algoritmo |
+
+- **Fechas:** ISO 8601 con zona horaria, por ejemplo `2026-10-31T08:00:00-06:00`.
+- **Conversión F20, la foto de la sala en `at`** (o ahora):
+  - `t0` = minutos desde el inicio del turno;
+  - `wait` = minutos esperando ahora − `t0`;
+  - atendidos = los que tienen `attendedAt ≤ at`;
+  - cada médico se libera al terminar su consulta más reciente, o en `t0`;
+  - los pacientes que llegan después de `at` no entran y se reportan en `notArrived`.
+- **Sala cerrada:** se puede consultar, pero no agregar pacientes ni resolver (409 `ROOM_CLOSED`).
+- **Sin Supabase configurado:** las rutas `/api/rooms` responden 503 `DATABASE_NOT_CONFIGURED`. El resto de la API funciona igual.
+- **Instalación:** el SQL de las tablas, RLS y las salas de demostración está en el repo `healthcare-bd`.
+
 **Variables de `.env`:**
+- `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY`: solo aquí, nunca en el frontend ni en el repositorio.
 - `ALLOWED_ORIGIN`: separadas por coma si son varias.
 - `SEARCH_TIME_LIMIT_MS`: por algoritmo e intento; 0 = sin límite.
 - `FALLBACK_WEIGHTS`: JSON, por ejemplo `[1.5, 5]`.
 - `TRACE_LIMIT`.
 - `MAX_CSV_BYTES`.
+
+## Postman
+
+Importa `postman/healthcare.postman_collection.json` y `postman/healthcare.postman_environment.json`, elige el entorno **Healthcare local** y corre la colección con el servidor levantado. Las peticiones guardan solas `roomId`, `patientId` y `solveId` para las siguientes.
 
 ## Comandos
 

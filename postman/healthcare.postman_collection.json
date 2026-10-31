@@ -1,0 +1,1772 @@
+{
+  "info": {
+    "_postman_id": "6f1d2c3a-0000-4000-8000-00000000c011",
+    "name": "Healthcare API",
+    "description": "Pruebas de la API de priorización de urgencias (UCS vs A*). Corre las carpetas en orden: cada petición guarda los ids que usan las siguientes.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Sistema",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Servicio vivo\", () => pm.expect(json.status).to.eql(\"ok\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Configuración",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/config",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "config"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Cinco niveles\", () => pm.expect(json.levels.length).to.eql(5));",
+                  "pm.test(\"Límites Manchester\", () => pm.expect(json.levels.map(l => l.limit)).to.eql([0, 10, 60, 120, 240]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. Resolver sin base de datos",
+      "item": [
+        {
+          "name": "Ejemplo de la guía (1 médico)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/solve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "solve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patients\": [\n    {\n      \"id\": \"P1\",\n      \"level\": 2,\n      \"wait\": 5,\n      \"duration\": 20\n    },\n    {\n      \"id\": \"P2\",\n      \"level\": 3,\n      \"wait\": 40,\n      \"duration\": 5\n    },\n    {\n      \"id\": \"P3\",\n      \"level\": 1,\n      \"wait\": 0,\n      \"duration\": 30\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"A* = 280\", () => pm.expect(json.results.astar.cost).to.eql(280));",
+                  "pm.test(\"UCS = 280\", () => pm.expect(json.results.ucs.cost).to.eql(280));",
+                  "pm.test(\"Mismo costo\", () => pm.expect(json.sameCost).to.eql(true));",
+                  "pm.test(\"Base por nivel = 320\", () => pm.expect(json.baseline.cost).to.eql(320));",
+                  "pm.test(\"Orden óptimo\", () => pm.expect(json.results.astar.steps.map(s => s.patient)).to.eql([\"P3\", \"P2\", \"P1\"]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Contraejemplo (2 médicos)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/solve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "solve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patients\": [\n    {\n      \"id\": \"P1\",\n      \"level\": 3,\n      \"wait\": 70,\n      \"duration\": 25\n    },\n    {\n      \"id\": \"P2\",\n      \"level\": 1,\n      \"wait\": 0,\n      \"duration\": 5\n    },\n    {\n      \"id\": \"P3\",\n      \"level\": 2,\n      \"wait\": 0,\n      \"duration\": 25\n    },\n    {\n      \"id\": \"P4\",\n      \"level\": 3,\n      \"wait\": 55,\n      \"duration\": 5\n    }\n  ],\n  \"doctors\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"A* = 40\", () => pm.expect(json.cost).to.eql(40));",
+                  "pm.test(\"Base por nivel = 140\", () => pm.expect(json.baseline.cost).to.eql(140));",
+                  "pm.test(\"Brecha 250 %\", () => pm.expect(json.baselineGapPct).to.eql(250));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Meta K = 1 con cierre",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/solve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "solve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patients\": [\n    {\n      \"id\": \"P1\",\n      \"level\": 2,\n      \"wait\": 5,\n      \"duration\": 20\n    },\n    {\n      \"id\": \"P2\",\n      \"level\": 3,\n      \"wait\": 40,\n      \"duration\": 5\n    },\n    {\n      \"id\": \"P3\",\n      \"level\": 1,\n      \"wait\": 0,\n      \"duration\": 30\n    }\n  ],\n  \"goal\": {\n    \"type\": \"k\",\n    \"value\": 1\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Costo de cierre 320\", () => pm.expect(json.results.astar.closingCost).to.eql(320));",
+                  "pm.test(\"Quedan fuera P1 y P2\", () => pm.expect(json.results.astar.leftOut.map(s => s.patient)).to.eql([\"P1\", \"P2\"]));",
+                  "pm.test(\"Alerta de crítico fuera\", () => pm.expect(json.alerts.map(a => a.code)).to.include(\"LEFT_OUT_CRITICAL\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Inicio modificado (P3 atendido, t0 = 30)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/solve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "solve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patients\": [\n    {\n      \"id\": \"P1\",\n      \"level\": 2,\n      \"wait\": 5,\n      \"duration\": 20\n    },\n    {\n      \"id\": \"P2\",\n      \"level\": 3,\n      \"wait\": 40,\n      \"duration\": 5\n    },\n    {\n      \"id\": \"P3\",\n      \"level\": 1,\n      \"wait\": 0,\n      \"duration\": 30\n    }\n  ],\n  \"start\": {\n    \"attended\": [\n      \"P3\"\n    ],\n    \"t0\": 30\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Costo 280\", () => pm.expect(json.cost).to.eql(280));",
+                  "pm.test(\"Faltan P2 y P1\", () => pm.expect(json.results.astar.steps.map(s => s.patient)).to.eql([\"P2\", \"P1\"]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Médicos ocupados (doctorsFreeAt)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/solve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "solve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patients\": [\n    {\n      \"id\": \"P1\",\n      \"level\": 2,\n      \"wait\": 5,\n      \"duration\": 20\n    },\n    {\n      \"id\": \"P2\",\n      \"level\": 3,\n      \"wait\": 40,\n      \"duration\": 5\n    },\n    {\n      \"id\": \"P3\",\n      \"level\": 1,\n      \"wait\": 0,\n      \"duration\": 30\n    },\n    {\n      \"id\": \"P4\",\n      \"level\": 2,\n      \"wait\": 8,\n      \"duration\": 10\n    }\n  ],\n  \"doctors\": 2,\n  \"start\": {\n    \"t0\": 10,\n    \"doctorsFreeAt\": [\n      40,\n      10\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Atiende primero el médico 2\", () => pm.expect(json.results.astar.steps[0].doctor).to.eql(2));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Tres algoritmos con traza",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/solve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "solve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patients\": [\n    {\n      \"id\": \"P1\",\n      \"level\": 2,\n      \"wait\": 5,\n      \"duration\": 20\n    },\n    {\n      \"id\": \"P2\",\n      \"level\": 3,\n      \"wait\": 40,\n      \"duration\": 5\n    },\n    {\n      \"id\": \"P3\",\n      \"level\": 1,\n      \"wait\": 0,\n      \"duration\": 30\n    }\n  ],\n  \"algorithms\": [\n    \"ucs\",\n    \"astar_simple\",\n    \"astar\"\n  ],\n  \"includeTrace\": true,\n  \"criticalFirst\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Tres resultados\", () => pm.expect(Object.keys(json.results)).to.eql([\"ucs\", \"astar_simple\", \"astar\"]));",
+                  "pm.test(\"f de A*\", () => pm.expect(json.results.astar.trace.map(r => r.f)).to.eql([0, 240, 260, 280, 280, 280]));",
+                  "pm.test(\"A* expande 6\", () => pm.expect(json.results.astar.expanded).to.eql(6));",
+                  "pm.test(\"UCS expande 9\", () => pm.expect(json.results.ucs.expanded).to.eql(9));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Regla N1 desactivada",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/solve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "solve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patients\": [\n    {\n      \"id\": \"P1\",\n      \"level\": 2,\n      \"wait\": 5,\n      \"duration\": 20\n    },\n    {\n      \"id\": \"P2\",\n      \"level\": 3,\n      \"wait\": 40,\n      \"duration\": 5\n    },\n    {\n      \"id\": \"P3\",\n      \"level\": 1,\n      \"wait\": 0,\n      \"duration\": 30\n    },\n    {\n      \"id\": \"P4\",\n      \"level\": 2,\n      \"wait\": 8,\n      \"duration\": 10\n    }\n  ],\n  \"criticalFirst\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"560 sin la regla\", () => pm.expect(json.cost).to.eql(560));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Generar sala grande (24 pacientes)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/scenarios/generate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "scenarios",
+                "generate"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"n\": 24,\n  \"seed\": 7\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set(\"bigPatients\", JSON.stringify(json.patients));",
+                  "pm.test(\"24 pacientes\", () => pm.expect(json.patients.length).to.eql(24));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sala grande: A* ponderado si no alcanza el tiempo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/solve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "solve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patients\": {{bigPatients}},\n  \"doctors\": 2,\n  \"algorithms\": [\"astar\"],\n  \"timeLimitMs\": 300\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Aproximado\", () => pm.expect(json.results.astar.status).to.eql(\"approximate\"));",
+                  "pm.test(\"Con ε > 1\", () => pm.expect(json.results.astar.weight).to.be.above(1));",
+                  "pm.test(\"No peor que la base\", () => pm.expect(json.cost).to.be.at.most(json.baseline.cost));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error: id repetido",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/solve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "solve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patients\": [\n    {\n      \"id\": \"P1\",\n      \"level\": 2,\n      \"wait\": 5,\n      \"duration\": 20\n    },\n    {\n      \"id\": \"P2\",\n      \"level\": 3,\n      \"wait\": 40,\n      \"duration\": 5\n    },\n    {\n      \"id\": \"P3\",\n      \"level\": 1,\n      \"wait\": 0,\n      \"duration\": 30\n    },\n    {\n      \"id\": \"P1\",\n      \"level\": 3,\n      \"wait\": 0,\n      \"duration\": 5\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 422\", () => pm.response.to.have.status(422));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Código\", () => pm.expect(json.code).to.eql(\"DUPLICATE_PATIENT_ID\"));",
+                  "pm.test(\"Campo\", () => pm.expect(json.field).to.eql(\"patients\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error: nivel fuera de rango",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/solve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "solve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patients\": [\n    {\n      \"id\": \"P1\",\n      \"level\": 7,\n      \"wait\": 0,\n      \"duration\": 5\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 422\", () => pm.response.to.have.status(422));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Código\", () => pm.expect(json.code).to.eql(\"VALIDATION_ERROR\"));",
+                  "pm.test(\"Campo\", () => pm.expect(json.field).to.eql(\"patients[0].level\"));",
+                  "pm.test(\"Mensaje\", () => pm.expect(json.message).to.eql(\"Debe ser menor o igual que 5\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error: K mayor que los pendientes",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/solve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "solve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patients\": [\n    {\n      \"id\": \"P1\",\n      \"level\": 2,\n      \"wait\": 5,\n      \"duration\": 20\n    },\n    {\n      \"id\": \"P2\",\n      \"level\": 3,\n      \"wait\": 40,\n      \"duration\": 5\n    },\n    {\n      \"id\": \"P3\",\n      \"level\": 1,\n      \"wait\": 0,\n      \"duration\": 30\n    }\n  ],\n  \"goal\": {\n    \"type\": \"k\",\n    \"value\": 5\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 422\", () => pm.response.to.have.status(422));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Código\", () => pm.expect(json.code).to.eql(\"INVALID_GOAL_VALUE\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Escenarios",
+      "item": [
+        {
+          "name": "Generar escenario reproducible",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/scenarios/generate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "scenarios",
+                "generate"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"n\": 10,\n  \"seed\": 42\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Semilla\", () => pm.expect(json.seed).to.eql(42));",
+                  "pm.test(\"10 pacientes\", () => pm.expect(json.patients.length).to.eql(10));",
+                  "pm.collectionVariables.set(\"generatedPatients\", JSON.stringify(json.patients));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Exportar CSV",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/scenarios/csv/export",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "scenarios",
+                "csv",
+                "export"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"patients\": {{generatedPatients}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Es CSV\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"text/csv\"));",
+                  "pm.test(\"Encabezado\", () => pm.expect(pm.response.text().split(\"\\n\")[0]).to.eql(\"patient_id,level,wait,duration\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Importar CSV (elige el archivo)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/scenarios/csv",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "scenarios",
+                "csv"
+              ]
+            },
+            "description": "Selecciona en Body → form-data el archivo escenario.csv que descargaste con «Exportar CSV». En el runner se omite si no hay archivo.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code !== 422) {",
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Salas en Supabase",
+      "item": [
+        {
+          "name": "Crear sala (2 médicos)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/rooms",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rooms"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sala Postman\",\n  \"shiftStartedAt\": \"2026-10-31T08:00:00-06:00\",\n  \"doctors\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set(\"roomId\", json.id);",
+                  "pm.test(\"Abierta\", () => pm.expect(json.status).to.eql(\"open\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar salas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/rooms",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rooms"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Incluye la sala creada\", () => pm.expect(json.map(r => r.id)).to.include(pm.collectionVariables.get(\"roomId\")));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Agregar P1 (N3, llegó 06:50)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/rooms/{{roomId}}/patients",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rooms",
+                "{{roomId}}",
+                "patients"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"P1\",\n  \"level\": 3,\n  \"durationMin\": 25,\n  \"arrivedAt\": \"2026-10-31T06:50:00-06:00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set(\"patientP1\", json.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Agregar P2 (N1, llegó 08:00)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/rooms/{{roomId}}/patients",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rooms",
+                "{{roomId}}",
+                "patients"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"P2\",\n  \"level\": 1,\n  \"durationMin\": 5,\n  \"arrivedAt\": \"2026-10-31T08:00:00-06:00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set(\"patientP2\", json.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Agregar P3 (N2, llegó 08:00)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/rooms/{{roomId}}/patients",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rooms",
+                "{{roomId}}",
+                "patients"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"P3\",\n  \"level\": 2,\n  \"durationMin\": 25,\n  \"arrivedAt\": \"2026-10-31T08:00:00-06:00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Agregar paciente sin label (se asigna P4)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/rooms/{{roomId}}/patients",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rooms",
+                "{{roomId}}",
+                "patients"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"level\": 3,\n  \"durationMin\": 5,\n  \"arrivedAt\": \"2026-10-31T07:05:00-06:00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Label automático\", () => pm.expect(json.label).to.eql(\"P4\"));",
+                  "pm.collectionVariables.set(\"patientP4\", json.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error: label repetido",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/rooms/{{roomId}}/patients",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rooms",
+                "{{roomId}}",
+                "patients"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"P1\",\n  \"level\": 2,\n  \"durationMin\": 10\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 409\", () => pm.response.to.have.status(409));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Código\", () => pm.expect(json.code).to.eql(\"DUPLICATE_LABEL\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ver sala con su foto actual",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/rooms/{{roomId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rooms",
+                "{{roomId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"4 pacientes\", () => pm.expect(json.patients.length).to.eql(4));",
+                  "pm.test(\"Trae snapshot\", () => pm.expect(json.snapshot).to.be.an(\"object\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resolver a las 08:00",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/rooms/{{roomId}}/solve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rooms",
+                "{{roomId}}",
+                "solve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"at\": \"2026-10-31T08:00:00-06:00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set(\"solveId\", json.solveId);",
+                  "pm.test(\"t0 = 0\", () => pm.expect(json.t0).to.eql(0));",
+                  "pm.test(\"A* = 40\", () => pm.expect(json.cost).to.eql(40));",
+                  "pm.test(\"Base = 140\", () => pm.expect(json.baseline.cost).to.eql(140));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Atender a P2 con el médico 1 a las 08:00",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/rooms/{{roomId}}/patients/{{patientP2}}/attend",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rooms",
+                "{{roomId}}",
+                "patients",
+                "{{patientP2}}",
+                "attend"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"doctor\": 1,\n  \"at\": \"2026-10-31T08:00:00-06:00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Médico 1\", () => pm.expect(json.doctor).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resolver a las 08:03 (P2 en consulta)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/rooms/{{roomId}}/solve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rooms",
+                "{{roomId}}",
+                "solve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"at\": \"2026-10-31T08:03:00-06:00\",\n  \"algorithms\": [\n    \"ucs\",\n    \"astar_simple\",\n    \"astar\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"t0 = 3\", () => pm.expect(json.t0).to.eql(3));",
+                  "pm.test(\"Médico 1 se libera en el minuto 5\", () => pm.expect(json.doctorsFreeAt).to.eql([5, 3]));",
+                  "pm.test(\"P2 ya no está en la agenda\", () => pm.expect(json.results.astar.steps.map(s => s.patient)).to.not.include(\"P2\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Historial de corridas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/rooms/{{roomId}}/solves",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rooms",
+                "{{roomId}}",
+                "solves"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Al menos dos corridas\", () => pm.expect(json.length).to.be.at.least(2));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Detalle de la primera corrida",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/rooms/{{roomId}}/solves/{{solveId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rooms",
+                "{{roomId}}",
+                "solves",
+                "{{solveId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Costo guardado\", () => pm.expect(json.cost).to.eql(40));",
+                  "pm.test(\"Algoritmos\", () => pm.expect(json.results.map(r => r.algorithm)).to.eql([\"ucs\", \"astar\"]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Regresar P2 a la espera",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/rooms/{{roomId}}/patients/{{patientP2}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rooms",
+                "{{roomId}}",
+                "patients",
+                "{{patientP2}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"attendedAt\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Sin atención\", () => pm.expect(json.attendedAt).to.eql(null));",
+                  "pm.test(\"Sin médico\", () => pm.expect(json.doctor).to.eql(null));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error: médico 3 en sala de 2",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/rooms/{{roomId}}/patients/{{patientP1}}/attend",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rooms",
+                "{{roomId}}",
+                "patients",
+                "{{patientP1}}",
+                "attend"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"doctor\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 422\", () => pm.response.to.have.status(422));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Código\", () => pm.expect(json.code).to.eql(\"INVALID_DOCTORS\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cerrar sala",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/rooms/{{roomId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rooms",
+                "{{roomId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"closed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Cerrada\", () => pm.expect(json.status).to.eql(\"closed\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error: resolver sala cerrada",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/rooms/{{roomId}}/solve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rooms",
+                "{{roomId}}",
+                "solve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 409\", () => pm.response.to.have.status(409));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Código\", () => pm.expect(json.code).to.eql(\"ROOM_CLOSED\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reabrir sala",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/rooms/{{roomId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rooms",
+                "{{roomId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"open\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Borrar paciente P4",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/rooms/{{roomId}}/patients/{{patientP4}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rooms",
+                "{{roomId}}",
+                "patients",
+                "{{patientP4}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Borrar sala",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/rooms/{{roomId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rooms",
+                "{{roomId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Error: sala borrada",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/rooms/{{roomId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rooms",
+                "{{roomId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 404\", () => pm.response.to.have.status(404));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"Código\", () => pm.expect(json.code).to.eql(\"ROOM_NOT_FOUND\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Necesita SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en el .env del backend y las migraciones de healthcare-bd aplicadas. Sin eso estas rutas responden 503 DATABASE_NOT_CONFIGURED."
+    },
+    {
+      "name": "5. Salas de demostración (seed.sql)",
+      "item": [
+        {
+          "name": "Demo: ejemplo de la guía",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/rooms/{{demoRoomGuide}}/solve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rooms",
+                "{{demoRoomGuide}}",
+                "solve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"at\": \"2026-10-31T08:00:00-06:00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"280\", () => pm.expect(json.cost).to.eql(280));",
+                  "pm.test(\"Base 320\", () => pm.expect(json.baseline.cost).to.eql(320));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Demo: contraejemplo con 2 médicos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/rooms/{{demoRoomCounter}}/solve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "rooms",
+                "{{demoRoomCounter}}",
+                "solve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"at\": \"2026-10-31T08:00:00-06:00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 201\", () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test(\"40\", () => pm.expect(json.cost).to.eql(40));",
+                  "pm.test(\"Base 140\", () => pm.expect(json.baseline.cost).to.eql(140));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Requiere haber corrido supabase/seed.sql del repo healthcare-bd."
+    }
+  ],
+  "variable": [
+    {
+      "key": "roomId",
+      "value": ""
+    },
+    {
+      "key": "patientP1",
+      "value": ""
+    },
+    {
+      "key": "patientP2",
+      "value": ""
+    },
+    {
+      "key": "patientP4",
+      "value": ""
+    },
+    {
+      "key": "solveId",
+      "value": ""
+    },
+    {
+      "key": "bigPatients",
+      "value": ""
+    },
+    {
+      "key": "generatedPatients",
+      "value": ""
+    }
+  ]
+}

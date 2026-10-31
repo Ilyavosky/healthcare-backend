@@ -2,7 +2,25 @@ from app.search.generator import generate_patients
 
 
 def test_health(client):
-    assert client.get("/api/health").json() == {"status": "ok"}
+    assert client.get("/api/health").json() == {
+        "status": "ok",
+        "database": "not_configured",
+    }
+
+
+def test_health_reports_configured_database():
+    from fastapi.testclient import TestClient
+
+    from app.config import Settings
+    from app.main import create_app
+
+    settings = Settings(
+        _env_file=None,
+        supabase_url="https://demo.supabase.co",
+        supabase_service_role_key="x",
+    )
+    response = TestClient(create_app(settings)).get("/api/health")
+    assert response.json()["database"] == "configured"
 
 
 def test_config(client):

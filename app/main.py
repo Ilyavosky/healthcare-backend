@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.errors import register_error_handlers
-from app.api.routers import config, health, scenarios, solve
+from app.api.routers import config, health, rooms, scenarios, solve
 from app.config import Settings, get_settings
 
 
@@ -20,7 +20,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
     )
     register_error_handlers(app)
-    for module in (health, config, scenarios, solve):
+    for module in (health, config, scenarios, solve, rooms):
         app.include_router(module.router, prefix="/api")
     if settings is not get_settings():
         app.dependency_overrides[get_settings] = lambda: settings

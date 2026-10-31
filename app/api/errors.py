@@ -7,11 +7,19 @@ from app.domain.errors import DomainError, ErrorCode
 STATUS_BY_CODE: dict[ErrorCode, int] = {
     ErrorCode.ROOM_NOT_FOUND: 404,
     ErrorCode.PATIENT_NOT_FOUND: 404,
+    ErrorCode.SOLVE_NOT_FOUND: 404,
     ErrorCode.DUPLICATE_LABEL: 409,
+    ErrorCode.ROOM_CLOSED: 409,
+    ErrorCode.DATABASE_NOT_CONFIGURED: 503,
+    ErrorCode.DATABASE_ERROR: 503,
 }
 FIELD_NAMES: dict[str, str] = {
     "doctors_free_at": "start.doctorsFreeAt",
     "csv": "file",
+    "duration_min": "durationMin",
+    "arrived_at": "arrivedAt",
+    "attended_at": "attendedAt",
+    "shift_started_at": "shiftStartedAt",
 }
 VALIDATION_MESSAGES: dict[str, str] = {
     "missing": "Falta este campo",
@@ -30,6 +38,12 @@ VALIDATION_MESSAGES: dict[str, str] = {
     "enum": "Valor no permitido",
     "literal_error": "Valor no permitido",
     "json_invalid": "El JSON no es válido",
+    "uuid_parsing": "Debe ser un UUID válido",
+    "uuid_type": "Debe ser un UUID válido",
+    "datetime_parsing": "Debe ser una fecha y hora ISO 8601",
+    "datetime_type": "Debe ser una fecha y hora ISO 8601",
+    "datetime_from_date_parsing": "Debe ser una fecha y hora ISO 8601",
+    "timezone_aware": "La fecha debe incluir zona horaria (por ejemplo -06:00)",
     "model_type": "Debe ser un objeto",
     "model_attributes_type": "Debe ser un objeto",
 }

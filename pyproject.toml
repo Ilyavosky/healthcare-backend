@@ -1,7 +1,7 @@
 [project]
 name = "healthcare-api"
 version = "0.1.0"
-description = "Add your description here"
+description = "API de priorización de urgencias médicas con Costo Uniforme y A* (Fundamentos de IA, UPChiapas)"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -16,3 +16,9 @@ dev = [
     "pytest>=9.2.0",
     "ruff>=0.17.3",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
