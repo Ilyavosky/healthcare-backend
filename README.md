@@ -19,11 +19,44 @@ API y motor de búsqueda del proyecto **Healthcare: Priorización de Urgencias M
 - **Agenda:** `build_schedule(problem, order)` da, por paciente, médico (numerados en el orden en que se capturaron sus minutos de liberación), inicio, fin, retraso, penalización y si quedó fuera de la meta. Siempre suma lo mismo que el costo de la búsqueda.
 - **Alertas:** `ALREADY_LATE`, `EXCEEDS_LIMIT`, `NEAR_LIMIT` (margen de 10 min), `LEFT_OUT` y `LEFT_OUT_CRITICAL`. Solo se devuelve el código y los minutos; los textos los pone el frontend.
 - **Servicio `solve`:** corre los algoritmos pedidos (por defecto `ucs` y `astar`) y la línea base, y calcula `same_cost`, la reducción de nodos contra UCS y la brecha de la base contra el óptimo. Con `time_limit_ms` y `fallback_weights`, si A\* no termina reintenta con A\* ponderado e informa el ε usado. Si ningún algoritmo termina, devuelve la agenda de la línea base.
+- **Desempates de la frontera:** a igual f sale primero el de menor h, luego el más profundo, y META gana cualquier empate. Así, cuando todas las agendas cuestan lo mismo (por ejemplo, tantos médicos como pacientes), A\* va directo a la meta en N + 2 expansiones.
 - **Límite de búsqueda:** `search` acepta `max_expanded` y `time_limit_ms` (por defecto sin límite). No restringen la entrada; detienen una corrida que crece demasiado con `SearchLimitError`, que reporta los nodos expandidos.
 
 ## Supuestos
 
 Médicos idénticos; el nivel de triage es un dato de entrada; duraciones fijas y sin interrupción; un médico libre siempre atiende; el entorno es una foto de la sala en `t0` y se replanifica cuando cambia.
+
+## API (Fase 6)
+
+`uv run fastapi dev app/main.py` y abrir `http://localhost:8000/docs`. Todo el JSON va en camelCase.
+
+| Método | Ruta | Qué hace |
+|---|---|---|
+| GET | `/api/health` | `{ "status": "ok" }` |
+| GET | `/api/config` | Niveles (nombre, peso, límite), tipos de meta, algoritmos, códigos de alerta, columnas del CSV y valores por defecto |
+| POST | `/api/scenarios/generate` | `{ n, seed? }` → `{ seed, patients }` reproducible |
+| POST | `/api/scenarios/csv` | Archivo CSV (`multipart/form-data`, campo `file`) → `{ patients }` |
+| POST | `/api/scenarios/csv/export` | `{ patients }` → descarga `escenario.csv` |
+| POST | `/api/solve` | Resuelve sin base de datos |
+
+**`POST /api/solve`:**
+- **Entrada:**
+  - `patients[]` con `{ id, level, wait, duration }`;
+  - `start` con `{ attended, t0, doctorsFreeAt? }`;
+  - `doctors`, `goal` con `{ type, value }`, `algorithms`, `criticalFirst`, `includeTrace`, `timeLimitMs?` y `allowApproximate`.
+- **Salida:**
+  - `results.<alg>` con `status` (`optimal`, `approximate` o `limit_reached`), `weight`, `cost`, `closingCost`, `expanded`, `maxFrontier`, `ms`, `reopened`, `steps[]`, `leftOut[]`, `trace[]` y `limitAttempts[]`;
+  - además `baseline`, `reference`, `cost`, `sameCost`, `reductionPct`, `baselineGapPct` y `alerts[]`.
+- **Pasos:** cada paso trae `{ patient, level, doctor, start, end, delay, penalty, afterGoal }`.
+
+**Errores:** siempre `{ code, message, field }`; 422 para validación (`VALIDATION_ERROR` con mensaje en español) y para los errores del dominio.
+
+**Variables de `.env`:**
+- `ALLOWED_ORIGIN`: separadas por coma si son varias.
+- `SEARCH_TIME_LIMIT_MS`: por algoritmo e intento; 0 = sin límite.
+- `FALLBACK_WEIGHTS`: JSON, por ejemplo `[1.5, 5]`.
+- `TRACE_LIMIT`.
+- `MAX_CSV_BYTES`.
 
 ## Comandos
 

@@ -5,6 +5,7 @@ from app.domain.goal import Goal, GoalType
 from app.domain.patient import Patient
 from app.domain.problem import Problem, State
 from app.search.engine import search
+from app.search.generator import generate_patients
 from app.search.heuristics import (
     HEURISTICS,
     AlgorithmName,
@@ -185,7 +186,7 @@ def test_astar_four_patients(four_patients, doctors, critical_first, expected):
 
 @pytest.mark.parametrize(
     "doctors, expected_cost, ucs_expanded, astar_expanded",
-    [(1, 4893, 2050, 470), (2, 1938, 18967, 3318), (3, 979, 64247, 1836)],
+    [(1, 4893, 2050, 470), (2, 1938, 18966, 3318), (3, 979, 64246, 1836)],
 )
 def test_scenario_12_astar_expands_less(
     doctors, expected_cost, ucs_expanded, astar_expanded
@@ -225,3 +226,12 @@ def test_weight_one_is_plain_astar(example_patients):
     plain = search(problem, full)
     weighted = search(problem, full, weight=1)
     assert (plain.cost, plain.expanded) == (weighted.cost, weighted.expanded)
+
+
+@pytest.mark.parametrize("n", [20, 60, 150])
+def test_plateau_goes_straight_to_goal(n):
+    patients = generate_patients(n, 5)
+    problem = Problem(patients, Goal(GoalType.ALL), doctors=n)
+    result = search(problem, full)
+    assert result.expanded == n + 2
+    assert result.cost == sum(p.penalty_at(0) for p in patients)

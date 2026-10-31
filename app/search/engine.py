@@ -8,6 +8,7 @@ from app.domain.problem import Problem, State
 from app.search.heuristics import Heuristic, zero
 
 Node = State | str
+GOAL_DEPTH = 10**9
 
 
 @dataclass(frozen=True)
@@ -72,8 +73,8 @@ def search(
     counter = itertools.count()
     start = problem.initial_state()
     start_h = heuristic(problem, start)
-    frontier: list[tuple[float, int, int, int, Node]] = [
-        (weight * start_h, start_h, next(counter), 0, start)
+    frontier: list[tuple[float, int, int, int, int, Node]] = [
+        (weight * start_h, start_h, -_depth(start), next(counter), 0, start)
     ]
     best_g: dict[Node, int] = {start: 0}
     parent: dict[Node, tuple[State, str | None, int]] = {}
@@ -85,7 +86,7 @@ def search(
 
     while frontier:
         max_frontier = max(max_frontier, len(frontier))
-        f, h, _, g, node = heapq.heappop(frontier)
+        f, h, _, _, g, node = heapq.heappop(frontier)
         if node in closed or g > best_g[node]:
             continue
         closed.add(node)
@@ -119,10 +120,21 @@ def search(
             new_h = heuristic(problem, next_node)
             heapq.heappush(
                 frontier,
-                (new_g + weight * new_h, new_h, next(counter), new_g, next_node),
+                (
+                    new_g + weight * new_h,
+                    new_h,
+                    -_depth(next_node),
+                    next(counter),
+                    new_g,
+                    next_node,
+                ),
             )
 
     raise NoSolutionError("La búsqueda terminó sin llegar a la meta")
+
+
+def _depth(node: Node) -> int:
+    return len(node.attended) if isinstance(node, State) else GOAL_DEPTH
 
 
 def _reconstruct_path(
