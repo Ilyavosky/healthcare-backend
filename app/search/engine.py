@@ -24,7 +24,7 @@ class TraceRow:
     state: Node
     g: int
     h: int
-    f: int
+    f: float
 
 
 @dataclass(frozen=True)
@@ -35,6 +35,7 @@ class SearchResult:
     max_frontier: int
     elapsed_ms: float
     trace: list[TraceRow]
+    reopened: int = 0
 
     @property
     def order(self) -> list[str]:
@@ -65,51 +66,60 @@ def search(
     trace_limit: int = 0,
     max_expanded: int | None = None,
     time_limit_ms: float | None = None,
+    weight: float = 1,
 ) -> SearchResult:
     started = time.perf_counter()
     counter = itertools.count()
     start = problem.initial_state()
     start_h = heuristic(problem, start)
-    frontier: list[tuple[int, int, int, int, Node]] = [
-        (start_h, start_h, next(counter), 0, start)
+    frontier: list[tuple[float, int, int, int, Node]] = [
+        (weight * start_h, start_h, next(counter), 0, start)
     ]
     best_g: dict[Node, int] = {start: 0}
     parent: dict[Node, tuple[State, str | None, int]] = {}
     closed: set[Node] = set()
     trace: list[TraceRow] = []
     max_frontier = 1
+    expanded = 0
+    reopened = 0
 
     while frontier:
         max_frontier = max(max_frontier, len(frontier))
         f, h, _, g, node = heapq.heappop(frontier)
-        if node in closed:
+        if node in closed or g > best_g[node]:
             continue
         closed.add(node)
+        expanded += 1
         if len(trace) < trace_limit:
             trace.append(TraceRow(node, g, h, f))
         if node == GOAL_NODE:
             return SearchResult(
                 cost=g,
                 path=_reconstruct_path(parent, node),
-                expanded=len(closed),
+                expanded=expanded,
                 max_frontier=max_frontier,
                 elapsed_ms=(time.perf_counter() - started) * 1000,
                 trace=trace,
+                reopened=reopened,
             )
         elapsed_ms = (time.perf_counter() - started) * 1000
-        if (max_expanded is not None and len(closed) >= max_expanded) or (
+        if (max_expanded is not None and expanded >= max_expanded) or (
             time_limit_ms is not None and elapsed_ms >= time_limit_ms
         ):
-            raise SearchLimitError(len(closed), max_frontier, elapsed_ms)
+            raise SearchLimitError(expanded, max_frontier, elapsed_ms)
         for next_node, step_cost, patient_id in problem.successors(node):
             new_g = g + step_cost
-            if next_node in closed or new_g >= best_g.get(next_node, new_g + 1):
+            if new_g >= best_g.get(next_node, new_g + 1):
                 continue
+            if next_node in closed:
+                closed.discard(next_node)
+                reopened += 1
             best_g[next_node] = new_g
             parent[next_node] = (node, patient_id, step_cost)
             new_h = heuristic(problem, next_node)
             heapq.heappush(
-                frontier, (new_g + new_h, new_h, next(counter), new_g, next_node)
+                frontier,
+                (new_g + weight * new_h, new_h, next(counter), new_g, next_node),
             )
 
     raise NoSolutionError("La búsqueda terminó sin llegar a la meta")
