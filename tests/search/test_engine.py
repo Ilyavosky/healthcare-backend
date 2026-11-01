@@ -154,7 +154,7 @@ def test_search_uses_given_heuristic(example_patients):
 
 def test_no_solution_raises(example_patients, monkeypatch):
     problem = Problem(example_patients, Goal(GoalType.ALL))
-    monkeypatch.setattr(problem, "successors", lambda state: [])
+    monkeypatch.setattr(problem, "iter_successors", lambda state: iter([]))
     with pytest.raises(NoSolutionError):
         search(problem)
 

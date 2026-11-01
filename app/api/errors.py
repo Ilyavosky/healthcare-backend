@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException
 
 from app.domain.errors import DomainError, ErrorCode
 
@@ -44,6 +45,8 @@ VALIDATION_MESSAGES: dict[str, str] = {
     "datetime_type": "Debe ser una fecha y hora ISO 8601",
     "datetime_from_date_parsing": "Debe ser una fecha y hora ISO 8601",
     "timezone_aware": "La fecha debe incluir zona horaria (por ejemplo -06:00)",
+    "dict_type": "Debe ser un objeto",
+    "goal_value": "Debe ser un entero (K u horizonte) o una lista de ids",
     "model_type": "Debe ser un objeto",
     "model_attributes_type": "Debe ser un objeto",
 }
@@ -99,6 +102,32 @@ async def validation_error_handler(
     )
 
 
+HTTP_ERRORS: dict[int, tuple[str, str]] = {
+    404: ("NOT_FOUND", "Ruta no encontrada"),
+    405: ("METHOD_NOT_ALLOWED", "Método no permitido en esta ruta"),
+}
+
+
+async def http_error_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    code, message = HTTP_ERRORS.get(
+        exc.status_code, (f"HTTP_{exc.status_code}", "Error HTTP")
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=error_body(code, message, None),
+        headers=getattr(exc, "headers", None),
+    )
+
+
+async def unexpected_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    return JSONResponse(
+        status_code=500,
+        content=error_body("INTERNAL_ERROR", "Error interno del servidor", None),
+    )
+
+
 def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(DomainError, domain_error_handler)
     app.add_exception_handler(RequestValidationError, validation_error_handler)
+    app.add_exception_handler(HTTPException, http_error_handler)
+    app.add_exception_handler(Exception, unexpected_error_handler)

@@ -186,7 +186,7 @@ def test_astar_four_patients(four_patients, doctors, critical_first, expected):
 
 @pytest.mark.parametrize(
     "doctors, expected_cost, ucs_expanded, astar_expanded",
-    [(1, 4893, 2050, 470), (2, 1938, 18966, 3318), (3, 979, 64246, 1836)],
+    [(1, 4893, 2050, 470), (2, 1938, 18962, 3318), (3, 979, 64190, 1836)],
 )
 def test_scenario_12_astar_expands_less(
     doctors, expected_cost, ucs_expanded, astar_expanded

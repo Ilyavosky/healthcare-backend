@@ -1,3 +1,4 @@
+import heapq
 from dataclasses import dataclass
 from enum import Enum
 
@@ -49,40 +50,31 @@ class Alert:
 
 class DoctorBoard:
     def __init__(self, free_at: tuple[int, ...]) -> None:
-        self.free_at = list(free_at)
+        self.heap = [(minute, index) for index, minute in enumerate(free_at)]
+        heapq.heapify(self.heap)
 
-    def take(self, start: int, duration: int) -> int:
-        index = min(range(len(self.free_at)), key=lambda i: (self.free_at[i], i))
-        if self.free_at[index] != start:
-            raise RuntimeError(
-                "La agenda no coincide con el médico que se libera primero"
-            )
-        self.free_at[index] = start + duration
-        return index + 1
+    def take(self, duration: int) -> tuple[int, int]:
+        start, index = heapq.heappop(self.heap)
+        heapq.heappush(self.heap, (start + duration, index))
+        return start, index + 1
 
 
 def build_schedule(problem: Problem, order: list[str]) -> Schedule:
     board = DoctorBoard(problem.doctors_free_at)
-    state = problem.initial_state()
-    steps = []
-    for patient_id in order:
-        patient = problem.patient(patient_id)
-        steps.append(_step(patient, state.next_start, board, after_goal=False))
-        state = problem.assign(state, patient)
-    left_out = []
-    for patient in problem.closing_order(state):
-        left_out.append(_step(patient, state.next_start, board, after_goal=True))
-        state = problem.assign(state, patient)
+    steps = [_step(problem.patient(pid), board, after_goal=False) for pid in order]
+    done = set(problem.initial_state().attended) | set(order)
+    remaining = [p for p in problem.patients if p.patient_id not in done]
+    closing = sorted(remaining, key=lambda p: (p.level, -p.wait))
+    left_out = [_step(p, board, after_goal=True) for p in closing]
     return Schedule(steps, left_out)
 
 
-def _step(
-    patient: Patient, start: int, board: DoctorBoard, after_goal: bool
-) -> ScheduleStep:
+def _step(patient: Patient, board: DoctorBoard, after_goal: bool) -> ScheduleStep:
+    start, doctor = board.take(patient.duration)
     return ScheduleStep(
         patient_id=patient.patient_id,
         level=patient.level,
-        doctor=board.take(start, patient.duration),
+        doctor=doctor,
         start=start,
         end=start + patient.duration,
         delay=patient.delay_at(start),

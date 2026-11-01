@@ -1,6 +1,5 @@
 from collections.abc import Callable
 from enum import Enum
-from itertools import accumulate
 
 from app.domain.constants import GOAL_NODE
 from app.domain.problem import Problem, State
@@ -21,26 +20,50 @@ def zero(problem: Problem, state: State | str) -> int:
 def simple(problem: Problem, state: State | str) -> int:
     if state == GOAL_NODE:
         return 0
-    t = problem.time_of(state)
-    return sum(p.penalty_at(t) for p in problem.pending(state))
+    t = state.free_at[0]
+    attended = state.attended
+    total = 0
+    for patient_id, weight, slack, _ in problem.rows:
+        if patient_id not in attended and slack + t > 0:
+            total += weight * (slack + t)
+    return total
 
 
 def full(problem: Problem, state: State | str) -> int:
     if state == GOAL_NODE:
         return 0
-    pending = problem.pending(state)
-    if not pending:
-        return 0
-    t = problem.time_of(state)
-    base = sum(p.penalty_at(t) for p in pending)
-    late_weights = sorted((p.weight for p in pending if p.is_late_at(t)), reverse=True)
-    if not late_weights:
+    t = state.free_at[0]
+    attended = state.attended
+    base = 0
+    late: list[int] = []
+    durations: list[int] = []
+    for patient_id, weight, slack, duration in problem.rows:
+        if patient_id in attended:
+            continue
+        durations.append(duration)
+        overdue = slack + t
+        if overdue >= 0:
+            late.append(weight)
+            base += weight * overdue
+    if not late:
         return base
-    shortest_sums = [0, *accumulate(sorted(p.duration for p in pending))]
-    doctors = len(state.free_at)
+    late.sort(reverse=True)
+    durations.sort()
+    free_at = state.free_at
+    doctors = len(free_at)
+    shortest = durations[0]
     extra = 0
-    for position, weight in enumerate(late_weights):
-        extra += weight * minimum_extra_wait(state, t, position, doctors, shortest_sums)
+    accumulated = 0
+    level = 0
+    for position, weight in enumerate(late):
+        if position < doctors:
+            extra += weight * min(free_at[position] - t, shortest)
+            continue
+        target = position // doctors
+        while level < target:
+            accumulated += durations[level]
+            level += 1
+        extra += weight * accumulated
     return base + extra
 
 

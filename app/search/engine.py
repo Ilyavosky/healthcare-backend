@@ -108,7 +108,11 @@ def search(
             time_limit_ms is not None and elapsed_ms >= time_limit_ms
         ):
             raise SearchLimitError(expanded, max_frontier, elapsed_ms)
-        for next_node, step_cost, patient_id in problem.successors(node):
+        for next_node, step_cost, patient_id in problem.iter_successors(node):
+            if time_limit_ms is not None:
+                elapsed_ms = (time.perf_counter() - started) * 1000
+                if elapsed_ms >= time_limit_ms:
+                    raise SearchLimitError(expanded, max_frontier, elapsed_ms)
             new_g = g + step_cost
             if new_g >= best_g.get(next_node, new_g + 1):
                 continue

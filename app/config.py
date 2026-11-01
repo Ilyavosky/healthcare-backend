@@ -9,7 +9,8 @@ class Settings(BaseSettings):
 
     supabase_url: str = ""
     supabase_service_role_key: SecretStr = SecretStr("")
-    allowed_origin: str = "http://localhost:5173"
+    allowed_origin: str = "http://localhost:3000,http://localhost:5173"
+    allowed_origin_regex: str = ""
     search_time_limit_ms: int = Field(10000, ge=0)
     fallback_weights: list[float] = Field(default_factory=lambda: [1.5, 5])
     trace_limit: int = Field(500, ge=0)

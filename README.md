@@ -20,6 +20,8 @@ API y motor de búsqueda del proyecto **Healthcare: Priorización de Urgencias M
 - **Alertas:** `ALREADY_LATE`, `EXCEEDS_LIMIT`, `NEAR_LIMIT` (margen de 10 min), `LEFT_OUT` y `LEFT_OUT_CRITICAL`. Solo se devuelve el código y los minutos; los textos los pone el frontend.
 - **Servicio `solve`:** corre los algoritmos pedidos (por defecto `ucs` y `astar`) y la línea base, y calcula `same_cost`, la reducción de nodos contra UCS y la brecha de la base contra el óptimo. Con `time_limit_ms` y `fallback_weights`, si A\* no termina reintenta con A\* ponderado e informa el ε usado. Si ningún algoritmo termina, devuelve la agenda de la línea base.
 - **Desempates de la frontera:** a igual f sale primero el de menor h, luego el más profundo, y META gana cualquier empate. Así, cuando todas las agendas cuestan lo mismo (por ejemplo, tantos médicos como pacientes), A\* va directo a la meta en N + 2 expansiones.
+- **Poda exacta por orden irrelevante:** si hay al menos tantos médicos libres como pacientes pendientes y todos se liberan en el mismo minuto, cualquier orden cuesta lo mismo, así que se genera un solo sucesor. Así, 500 pacientes con 500 médicos se resuelven en 55 ms.
+- **Presupuesto de tiempo:** `timeLimitMs` es el total por algoritmo. El intento óptimo usa la mitad y cada reintento ponderado la mitad de lo que queda. El límite también se revisa dentro de cada expansión.
 - **Límite de búsqueda:** `search` acepta `max_expanded` y `time_limit_ms` (por defecto sin límite). No restringen la entrada; detienen una corrida que crece demasiado con `SearchLimitError`, que reporta los nodos expandidos.
 
 ## Supuestos
@@ -49,7 +51,17 @@ Médicos idénticos; el nivel de triage es un dato de entrada; duraciones fijas 
   - además `baseline`, `reference`, `cost`, `sameCost`, `reductionPct`, `baselineGapPct` y `alerts[]`.
 - **Pasos:** cada paso trae `{ patient, level, doctor, start, end, delay, penalty, afterGoal }`.
 
-**Errores:** siempre `{ code, message, field }`; 422 para validación (`VALIDATION_ERROR` con mensaje en español) y para los errores del dominio.
+**Errores:** siempre `{ code, message, field }`, también en 404 (`NOT_FOUND`), 405 (`METHOD_NOT_ALLOWED`) y 500 (`INTERNAL_ERROR`). Los errores de validación (`VALIDATION_ERROR`) y del dominio responden 422, con el mensaje en español.
+
+**Tipos estrictos:**
+- Los números deben ser números y los booleanos booleanos: `"2"`, `2.0`, `true` o `"yes"` se rechazan.
+- Los textos se recortan, así que `" P1 "` y `"P1"` son el mismo id.
+- `goal.value` solo acepta un entero (K u horizonte) o una lista de ids.
+
+**Tamaños:**
+- No hay tope para pacientes ni médicos en `/api/solve`; 10¹² médicos funcionan.
+- `/api/scenarios/generate` admite hasta 100 000 pacientes, para proteger la memoria del servidor.
+- En las salas, `doctors` llega hasta 32 767 (columna `smallint`).
 
 ### Salas en Supabase
 
@@ -64,7 +76,7 @@ Médicos idénticos; el nivel de triage es un dato de entrada; duraciones fijas 
 | PATCH | `/api/rooms/{roomId}/patients/{patientId}` | Edita datos; `attendedAt: null` lo regresa a la espera |
 | POST | `/api/rooms/{roomId}/patients/{patientId}/attend` | `{ doctor?, at? }`; con 1 médico, `doctor` es opcional |
 | DELETE | `/api/rooms/{roomId}/patients/{patientId}` | Elimina un paciente capturado por error |
-| POST | `/api/rooms/{roomId}/solve` | Igual que `/api/solve` (meta, algoritmos, `criticalFirst`, `includeTrace`, `timeLimitMs`, `allowApproximate`) más `at?`; guarda la corrida y responde 201 con `solveId`, `t0`, `doctorsFreeAt` y `notArrived` |
+| POST | `/api/rooms/{roomId}/solve` | Igual que `/api/solve` (meta, algoritmos, `criticalFirst`, `includeTrace`, `timeLimitMs`, `allowApproximate`) más `at?`. Guarda la corrida y responde 201 con `solveId`, `t0`, `doctorsFreeAt`, `notArrived` y `problem` (lo que resolvió el algoritmo, en minutos) |
 | GET | `/api/rooms/{roomId}/solves` | Historial de corridas (resumen) |
 | GET | `/api/rooms/{roomId}/solves/{solveId}` | Corrida completa: entrada en minutos, base, alertas y resultado de cada algoritmo |
 
@@ -82,6 +94,7 @@ Médicos idénticos; el nivel de triage es un dato de entrada; duraciones fijas 
 **Variables de `.env`:**
 - `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY`: solo aquí, nunca en el frontend ni en el repositorio.
 - `ALLOWED_ORIGIN`: separadas por coma si son varias.
+- `ALLOWED_ORIGIN_REGEX`: opcional, para los dominios de preview de Vercel, por ejemplo `https://healthcare-[a-z0-9-]+\.vercel\.app`.
 - `SEARCH_TIME_LIMIT_MS`: por algoritmo e intento; 0 = sin límite.
 - `FALLBACK_WEIGHTS`: JSON, por ejemplo `[1.5, 5]`.
 - `TRACE_LIMIT`.
@@ -89,7 +102,17 @@ Médicos idénticos; el nivel de triage es un dato de entrada; duraciones fijas 
 
 ## Postman
 
-Importa `postman/healthcare.postman_collection.json` y `postman/healthcare.postman_environment.json`, elige el entorno **Healthcare local** y corre la colección con el servidor levantado. Las peticiones guardan solas `roomId`, `patientId` y `solveId` para las siguientes.
+| Archivo | Para qué |
+|---|---|
+| `postman/healthcare.postman_collection.json` | Recorrido funcional: 40 peticiones |
+| `postman/healthcare-pruebas.postman_collection.json` | Pruebas exhaustivas: 170 peticiones con oráculo independiente |
+| `postman/healthcare.postman_environment.json` | Entorno local |
+| `postman/healthcare.railway.postman_environment.json` | Entorno de Railway |
+
+En la colección exhaustiva, cada respuesta de `/solve` se revisa en JavaScript:
+- recalcula el óptimo por fuerza bruta (hasta 9 pendientes) y la línea base;
+- verifica cada paso de cada agenda (médico, inicio, fin, retraso, penalización, acción válida, regla N1, meta y cierre);
+- verifica las alertas, las métricas, el formato de error y las claves en camelCase.
 
 ## Comandos
 

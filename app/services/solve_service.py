@@ -1,3 +1,4 @@
+import time
 from dataclasses import dataclass, field
 
 from app.domain.problem import Problem
@@ -117,13 +118,17 @@ def _run(
     fallback_weights: tuple[float, ...],
 ) -> AlgorithmRun:
     limits = []
-    for weight in (1, *fallback_weights):
+    weights = (1, *fallback_weights)
+    started = time.perf_counter()
+    for attempt, weight in enumerate(weights):
         try:
             result = search(
                 problem,
                 HEURISTICS[name],
                 trace_limit=trace_limit,
-                time_limit_ms=time_limit_ms,
+                time_limit_ms=_attempt_budget(
+                    time_limit_ms, started, attempt, len(weights)
+                ),
                 weight=weight,
             )
         except SearchLimitError as error:
@@ -136,6 +141,17 @@ def _run(
         schedule = build_schedule(problem, result.order)
         return AlgorithmRun(name, result, schedule, weight, limits)
     return AlgorithmRun(name, None, None, limits[-1].weight, limits)
+
+
+def _attempt_budget(
+    total_ms: float | None, started: float, attempt: int, attempts: int
+) -> float | None:
+    if total_ms is None:
+        return None
+    remaining = total_ms - (time.perf_counter() - started) * 1000
+    if attempt < attempts - 1:
+        remaining /= 2
+    return max(remaining, 1.0)
 
 
 def _reference(runs: dict[AlgorithmName, AlgorithmRun]) -> AlgorithmName | None:

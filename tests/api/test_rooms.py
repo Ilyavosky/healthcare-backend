@@ -411,3 +411,14 @@ def test_rooms_need_supabase_when_not_overridden(settings):
     response = client.get("/api/rooms")
     assert response.status_code == 503
     assert response.json()["code"] == "DATABASE_NOT_CONFIGURED"
+
+
+def test_room_solve_returns_the_solved_problem(client):
+    room = guide_room(client)
+    data = client.post(f"/api/rooms/{room['id']}/solve", json={"at": SHIFT}).json()
+    problem = data["problem"]
+    assert problem["patients"][1] == {"id": "P2", "level": 3, "wait": 40, "duration": 5}
+    assert problem["start"] == {"attended": [], "t0": 0, "doctorsFreeAt": [0]}
+    assert problem["doctors"] == 1
+    assert problem["goal"] == {"type": "all", "value": None}
+    assert problem["criticalFirst"] is True

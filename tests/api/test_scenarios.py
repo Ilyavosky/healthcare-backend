@@ -152,3 +152,38 @@ def test_cors_rejects_other_origin(client):
         },
     )
     assert "access-control-allow-origin" not in response.headers
+
+
+def preflight(client, origin: str):
+    return client.options(
+        "/api/solve",
+        headers={"Origin": origin, "Access-Control-Request-Method": "POST"},
+    )
+
+
+def test_cors_default_allows_next_dev_server(client):
+    response = preflight(client, "http://localhost:3000")
+    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+
+
+def test_cors_regex_allows_vercel_previews():
+    from fastapi.testclient import TestClient
+
+    from app.config import Settings
+    from app.main import create_app
+
+    settings = Settings(
+        _env_file=None,
+        allowed_origin="https://healthcare.vercel.app",
+        allowed_origin_regex=r"https://healthcare-[a-z0-9-]+\.vercel\.app",
+    )
+    client = TestClient(create_app(settings))
+    exact = preflight(client, "https://healthcare.vercel.app")
+    preview = preflight(client, "https://healthcare-git-develop-mayte.vercel.app")
+    other = preflight(client, "https://otro.vercel.app")
+    assert exact.headers["access-control-allow-origin"] == "https://healthcare.vercel.app"
+    assert (
+        preview.headers["access-control-allow-origin"]
+        == "https://healthcare-git-develop-mayte.vercel.app"
+    )
+    assert "access-control-allow-origin" not in other.headers

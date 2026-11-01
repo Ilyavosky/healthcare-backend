@@ -16,8 +16,10 @@ from app.api.schemas.solve import (
     AttemptOut,
     BaselineOut,
     GoalIn,
+    ProblemOut,
     SolveRequest,
     SolveResponse,
+    StartIn,
     TraceRowOut,
 )
 from app.domain.errors import DomainError
@@ -74,6 +76,24 @@ def to_problem(request: SolveRequest) -> Problem:
         doctors=request.doctors,
         doctors_free_at=tuple(free_at) if free_at is not None else None,
         critical_first=request.critical_first,
+    )
+
+
+def to_problem_out(problem: Problem) -> ProblemOut:
+    value = problem.goal.value
+    return ProblemOut(
+        patients=[to_patient_in(p) for p in problem.patients],
+        start=StartIn(
+            attended=sorted(problem.start_state.attended),
+            t0=problem.t0,
+            doctors_free_at=list(problem.doctors_free_at),
+        ),
+        doctors=problem.doctors,
+        goal=GoalIn(
+            type=problem.goal.type,
+            value=sorted(value) if isinstance(value, frozenset) else value,
+        ),
+        critical_first=problem.critical_first,
     )
 
 
@@ -244,6 +264,7 @@ def to_room_solve_response(result: RoomSolveOutcome) -> RoomSolveResponse:
         t0=result.snapshot.t0,
         doctors_free_at=list(result.snapshot.doctors_free_at),
         not_arrived=result.snapshot.not_arrived,
+        problem=to_problem_out(result.problem),
     )
 
 

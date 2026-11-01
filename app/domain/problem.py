@@ -1,3 +1,5 @@
+import heapq
+from collections.abc import Iterator
 from dataclasses import dataclass
 
 from app.domain.constants import (
@@ -81,13 +83,17 @@ class Problem:
                 f"Debe haber al menos {MIN_DOCTORS} médico",
                 "doctors",
             )
-        free_at = doctors_free_at if doctors_free_at is not None else (t0,) * doctors
-        if len(free_at) != doctors:
+        useful = min(doctors, len(pending_ids))
+        if doctors_free_at is None:
+            free_at: tuple[int, ...] = (t0,) * useful
+        elif len(doctors_free_at) != doctors:
             raise DomainError(
                 ErrorCode.INVALID_DOCTORS,
                 "Debe indicarse a qué minuto se libera cada médico",
                 "doctors_free_at",
             )
+        else:
+            free_at = tuple(doctors_free_at)
         if any(minute < t0 for minute in free_at):
             raise DomainError(
                 ErrorCode.INVALID_DOCTORS,
@@ -97,9 +103,13 @@ class Problem:
         self.goal = goal
         self.t0 = t0
         self.doctors = doctors
-        self.doctors_free_at = tuple(free_at)
+        self.doctors_free_at = free_at
         self.critical_first = critical_first
-        useful = min(doctors, len(pending_ids))
+        self.capture_index = {p.patient_id: i for i, p in enumerate(self.patients)}
+        self.rows = tuple(
+            (p.patient_id, p.weight, p.wait - p.limit, p.duration)
+            for p in self.patients
+        )
         self.start_state = State(start_attended, tuple(sorted(free_at))[:useful])
 
     def initial_state(self) -> State:
@@ -156,17 +166,29 @@ class Problem:
         return sorted(self.pending(state), key=lambda p: (p.level, -p.wait))
 
     def closing_cost(self, state: State) -> int:
+        free_at = list(state.free_at)
         total = 0
         for patient in self.closing_order(state):
-            total += patient.penalty_at(state.next_start)
-            state = self.assign(state, patient)
+            start = heapq.heappop(free_at)
+            total += patient.penalty_at(start)
+            heapq.heappush(free_at, start + patient.duration)
         return total
 
     def successors(self, state: State) -> list[Successor]:
+        return list(self.iter_successors(state))
+
+    def iter_successors(self, state: State) -> Iterator[Successor]:
         if self.is_goal(state):
-            return [(GOAL_NODE, self.closing_cost(state), None)]
+            yield (GOAL_NODE, self.closing_cost(state), None)
+            return
         t = self.time_of(state)
-        return [
-            (self.assign(state, p), p.penalty_at(t), p.patient_id)
-            for p in self.candidates(state)
-        ]
+        candidates = self.candidates(state)
+        if self.order_is_irrelevant(state):
+            candidates = candidates[:1]
+        for p in candidates:
+            yield (self.assign(state, p), p.penalty_at(t), p.patient_id)
+
+    def order_is_irrelevant(self, state: State) -> bool:
+        pending = len(self.patients) - len(state.attended)
+        free_at = state.free_at
+        return len(free_at) >= pending and free_at[pending - 1] == free_at[0]

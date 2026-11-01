@@ -2,25 +2,28 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import AwareDatetime, Field
+from pydantic import AwareDatetime, Field, StrictBool, StrictInt
 
 from app.api.schemas.common import CamelModel, StepOut
-from app.api.schemas.solve import AttemptOut, GoalIn, SolveResponse
+from app.api.schemas.solve import AttemptOut, GoalIn, ProblemOut, SolveResponse
 from app.search.heuristics import AlgorithmName
 
 RoomStatus = Literal["open", "closed"]
 
 
+MAX_ROOM_DOCTORS = 32767
+
+
 class RoomCreate(CamelModel):
     name: str = Field(min_length=1, max_length=80)
     shift_started_at: AwareDatetime | None = None
-    doctors: int = Field(1, ge=1)
+    doctors: StrictInt = Field(1, ge=1, le=MAX_ROOM_DOCTORS)
 
 
 class RoomUpdate(CamelModel):
     name: str | None = Field(None, min_length=1, max_length=80)
     shift_started_at: AwareDatetime | None = None
-    doctors: int | None = Field(None, ge=1)
+    doctors: StrictInt | None = Field(None, ge=1, le=MAX_ROOM_DOCTORS)
     status: RoomStatus | None = None
 
 
@@ -35,22 +38,22 @@ class RoomOut(CamelModel):
 
 class PatientCreate(CamelModel):
     label: str | None = Field(None, min_length=1, max_length=40)
-    level: int = Field(ge=1, le=5)
-    duration_min: int = Field(gt=0)
+    level: StrictInt = Field(ge=1, le=5)
+    duration_min: StrictInt = Field(gt=0)
     arrived_at: AwareDatetime | None = None
 
 
 class PatientUpdate(CamelModel):
     label: str | None = Field(None, min_length=1, max_length=40)
-    level: int | None = Field(None, ge=1, le=5)
-    duration_min: int | None = Field(None, gt=0)
+    level: StrictInt | None = Field(None, ge=1, le=5)
+    duration_min: StrictInt | None = Field(None, gt=0)
     arrived_at: AwareDatetime | None = None
     attended_at: AwareDatetime | None = None
-    doctor: int | None = Field(None, ge=1)
+    doctor: StrictInt | None = Field(None, ge=1)
 
 
 class AttendRequest(CamelModel):
-    doctor: int | None = Field(None, ge=1)
+    doctor: StrictInt | None = Field(None, ge=1)
     at: AwareDatetime | None = None
 
 
@@ -94,10 +97,10 @@ class RoomSolveRequest(CamelModel):
     algorithms: list[AlgorithmName] = Field(
         default_factory=lambda: [AlgorithmName.UCS, AlgorithmName.ASTAR], min_length=1
     )
-    critical_first: bool = True
-    include_trace: bool = False
-    time_limit_ms: int | None = Field(None, ge=0)
-    allow_approximate: bool = True
+    critical_first: StrictBool = True
+    include_trace: StrictBool = False
+    time_limit_ms: StrictInt | None = Field(None, ge=0)
+    allow_approximate: StrictBool = True
     at: AwareDatetime | None = None
 
 
@@ -108,6 +111,7 @@ class RoomSolveResponse(SolveResponse):
     t0: int
     doctors_free_at: list[int]
     not_arrived: list[str]
+    problem: ProblemOut
 
 
 class SolveSummaryOut(CamelModel):

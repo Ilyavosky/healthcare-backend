@@ -1,11 +1,13 @@
-from pydantic import Field
+from pydantic import Field, StrictInt
 
 from app.api.schemas.common import CamelModel, PatientIn
 
+MAX_GENERATED_PATIENTS = 100_000
+
 
 class GenerateRequest(CamelModel):
-    n: int = Field(ge=1)
-    seed: int | None = None
+    n: StrictInt = Field(ge=1, le=MAX_GENERATED_PATIENTS)
+    seed: StrictInt | None = None
 
 
 class PatientsOut(CamelModel):
