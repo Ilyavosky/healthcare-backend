@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     search_time_limit_ms: int = Field(10000, ge=0)
     fallback_weights: list[float] = Field(default_factory=lambda: [1.5, 5])
     trace_limit: int = Field(500, ge=0)
+    max_trace_limit: int = Field(20000, ge=0)
     max_csv_bytes: int = Field(2_000_000, gt=0)
 
     @property

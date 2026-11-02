@@ -95,7 +95,11 @@ def test_critical_first_can_be_disabled(client, four_body):
 def test_trace(client, example_body):
     body = with_changes(example_body, includeTrace=True, criticalFirst=False)
     trace = post(client, body).json()["results"]["astar"]["trace"]
-    assert trace[0] == {
+    root = {key: value for key, value in trace[0].items() if key != "children"}
+    assert root == {
+        "id": 0,
+        "parent": -1,
+        "patient": None,
         "attended": [],
         "freeAt": [0],
         "isGoal": False,
@@ -103,9 +107,56 @@ def test_trace(client, example_body):
         "h": 0,
         "f": 0,
     }
+    assert [child["patient"] for child in trace[0]["children"]] == ["P1", "P2", "P3"]
     assert [row["f"] for row in trace] == [0, 240, 260, 280, 280, 280]
     assert trace[-1]["isGoal"] is True
     assert trace[-1]["attended"] is None
+
+
+def test_trace_links_every_expanded_node_to_its_parent(client, four_body):
+    body = with_changes(four_body, includeTrace=True, doctors=2, algorithms=["astar"])
+    result = post(client, body).json()["results"]["astar"]
+    trace = result["trace"]
+    generated = {}
+    for row in trace:
+        if row["parent"] != -1:
+            assert generated[row["id"]] == (row["parent"], row["patient"], row["g"])
+        for child in row["children"]:
+            generated[child["id"]] = (row["id"], child["patient"], child["g"])
+            assert child["f"] == child["g"] + child["h"]
+    by_id = {row["id"]: row for row in trace}
+    order = []
+    node = trace[-1]
+    while node["parent"] != -1:
+        if node["patient"] is not None:
+            order.append(node["patient"])
+        node = by_id[node["parent"]]
+    assert trace[-1]["isGoal"] is True
+    assert list(reversed(order)) == [step["patient"] for step in result["steps"]]
+
+
+def test_trace_limit_can_be_raised_up_to_the_server_maximum(client, settings):
+    patients = [
+        {"id": p.patient_id, "level": p.level, "wait": p.wait, "duration": p.duration}
+        for p in generate_patients(9, 3)
+    ]
+    body = {"patients": patients, "includeTrace": True, "algorithms": ["ucs"]}
+    default = post(client, body).json()["results"]["ucs"]
+    assert len(default["trace"]) == min(default["expanded"], settings.trace_limit)
+    raised = post(client, {**body, "traceLimit": 100000}).json()["results"]["ucs"]
+    assert len(raised["trace"]) == min(raised["expanded"], settings.max_trace_limit)
+    assert raised["trace"][-1]["isGoal"] is True
+
+
+def test_trace_limit_must_be_positive(client, example_body):
+    response = client.post("/api/solve", json={**example_body, "traceLimit": 0})
+    assert response.status_code == 422
+
+
+def test_large_responses_are_compressed(client, example_body):
+    body = with_changes(example_body, includeTrace=True)
+    response = client.post("/api/solve", json=body, headers={"Accept-Encoding": "gzip"})
+    assert response.headers.get("content-encoding") == "gzip"
 
 
 def test_no_trace_by_default(client, example_body):

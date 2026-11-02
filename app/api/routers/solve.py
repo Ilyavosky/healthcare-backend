@@ -20,7 +20,9 @@ def solve_problem(body: SolveRequest, settings: SettingsDep) -> SolveResponse:
         problem,
         body.algorithms,
         include_trace=body.include_trace,
-        trace_limit=settings.trace_limit,
+        trace_limit=min(
+            body.trace_limit or settings.trace_limit, settings.max_trace_limit
+        ),
         time_limit_ms=limit or None,
         fallback_weights=tuple(settings.fallback_weights)
         if body.allow_approximate

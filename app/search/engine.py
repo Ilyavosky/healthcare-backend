@@ -21,11 +21,24 @@ class PathStep:
 
 
 @dataclass(frozen=True)
+class TraceChild:
+    node_id: int
+    patient_id: str | None
+    g: int
+    h: int
+    f: float
+
+
+@dataclass(frozen=True)
 class TraceRow:
     state: Node
     g: int
     h: int
     f: float
+    node_id: int = 0
+    parent_id: int = -1
+    patient_id: str | None = None
+    children: tuple[TraceChild, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -84,16 +97,20 @@ def search(
     expanded = 0
     reopened = 0
 
+    origin: dict[int, tuple[int, str | None]] = {}
+
     while frontier:
         max_frontier = max(max_frontier, len(frontier))
-        f, h, _, _, g, node = heapq.heappop(frontier)
+        f, h, _, entry_id, g, node = heapq.heappop(frontier)
         if node in closed or g > best_g[node]:
             continue
         closed.add(node)
         expanded += 1
-        if len(trace) < trace_limit:
-            trace.append(TraceRow(node, g, h, f))
+        tracing = len(trace) < trace_limit
+        children: list[TraceChild] = []
         if node == GOAL_NODE:
+            if tracing:
+                trace.append(_trace_row(node, g, h, f, entry_id, origin, children))
             return SearchResult(
                 cost=g,
                 path=_reconstruct_path(parent, node),
@@ -122,19 +139,32 @@ def search(
             best_g[next_node] = new_g
             parent[next_node] = (node, patient_id, step_cost)
             new_h = heuristic(problem, next_node)
+            child_id = next(counter)
+            new_f = new_g + weight * new_h
+            if tracing:
+                origin[child_id] = (entry_id, patient_id)
+                children.append(TraceChild(child_id, patient_id, new_g, new_h, new_f))
             heapq.heappush(
                 frontier,
-                (
-                    new_g + weight * new_h,
-                    new_h,
-                    -_depth(next_node),
-                    next(counter),
-                    new_g,
-                    next_node,
-                ),
+                (new_f, new_h, -_depth(next_node), child_id, new_g, next_node),
             )
+        if tracing:
+            trace.append(_trace_row(node, g, h, f, entry_id, origin, children))
 
     raise NoSolutionError("La búsqueda terminó sin llegar a la meta")
+
+
+def _trace_row(
+    node: Node,
+    g: int,
+    h: int,
+    f: float,
+    entry_id: int,
+    origin: dict[int, tuple[int, str | None]],
+    children: list[TraceChild],
+) -> TraceRow:
+    parent_id, patient_id = origin.get(entry_id, (-1, None))
+    return TraceRow(node, g, h, f, entry_id, parent_id, patient_id, tuple(children))
 
 
 def _depth(node: Node) -> int:

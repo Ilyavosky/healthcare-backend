@@ -42,6 +42,7 @@ class SolveRequest(CamelModel):
     )
     critical_first: StrictBool = True
     include_trace: StrictBool = False
+    trace_limit: StrictInt | None = Field(None, ge=1)
     time_limit_ms: StrictInt | None = Field(None, ge=0)
     allow_approximate: StrictBool = True
 
@@ -54,13 +55,25 @@ class ProblemOut(CamelModel):
     critical_first: bool
 
 
+class TraceChildOut(CamelModel):
+    id: int
+    patient: str | None
+    g: int
+    h: int
+    f: float
+
+
 class TraceRowOut(CamelModel):
+    id: int
+    parent: int
+    patient: str | None
     attended: list[str] | None
     free_at: list[int] | None
     is_goal: bool
     g: int
     h: int
     f: float
+    children: list[TraceChildOut]
 
 
 class AttemptOut(CamelModel):

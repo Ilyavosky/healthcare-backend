@@ -20,6 +20,7 @@ from app.api.schemas.solve import (
     SolveRequest,
     SolveResponse,
     StartIn,
+    TraceChildOut,
     TraceRowOut,
 )
 from app.domain.errors import DomainError
@@ -111,17 +112,27 @@ def to_step_out(step: ScheduleStep) -> StepOut:
 
 
 def to_trace_row_out(row: TraceRow) -> TraceRowOut:
-    if isinstance(row.state, State):
-        return TraceRowOut(
-            attended=sorted(row.state.attended),
-            free_at=list(row.state.free_at),
-            is_goal=False,
-            g=row.g,
-            h=row.h,
-            f=row.f,
-        )
+    is_state = isinstance(row.state, State)
     return TraceRowOut(
-        attended=None, free_at=None, is_goal=True, g=row.g, h=row.h, f=row.f
+        id=row.node_id,
+        parent=row.parent_id,
+        patient=row.patient_id,
+        attended=sorted(row.state.attended) if is_state else None,
+        free_at=list(row.state.free_at) if is_state else None,
+        is_goal=not is_state,
+        g=row.g,
+        h=row.h,
+        f=row.f,
+        children=[
+            TraceChildOut(
+                id=child.node_id,
+                patient=child.patient_id,
+                g=child.g,
+                h=child.h,
+                f=child.f,
+            )
+            for child in row.children
+        ],
     )
 
 

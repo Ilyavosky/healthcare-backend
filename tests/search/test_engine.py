@@ -128,6 +128,22 @@ def test_ucs_k_goal_includes_closing_cost(example_patients):
     assert result.path[-1].cost == result.cost - sum(s.cost for s in result.path[:-1])
 
 
+def test_trace_rows_carry_ids_parents_and_children(example_patients):
+    problem = Problem(example_patients, Goal(GoalType.ALL), critical_first=False)
+    result = search(problem, trace_limit=50)
+    ids = [row.node_id for row in result.trace]
+    assert len(ids) == len(set(ids))
+    assert result.trace[0].parent_id == -1
+    children = {
+        child.node_id: (row.node_id, child.patient_id)
+        for row in result.trace
+        for child in row.children
+    }
+    for row in result.trace[1:]:
+        assert children[row.node_id] == (row.parent_id, row.patient_id)
+    assert result.trace[-1].children == ()
+
+
 def test_trace_is_limited(example_patients):
     problem = Problem(example_patients, Goal(GoalType.ALL), critical_first=False)
     assert search(problem).trace == []

@@ -45,9 +45,9 @@ Médicos idénticos; el nivel de triage es un dato de entrada; duraciones fijas 
 - **Entrada:**
   - `patients[]` con `{ id, level, wait, duration }`;
   - `start` con `{ attended, t0, doctorsFreeAt? }`;
-  - `doctors`, `goal` con `{ type, value }`, `algorithms`, `criticalFirst`, `includeTrace`, `timeLimitMs?` y `allowApproximate`.
+  - `doctors`, `goal` con `{ type, value }`, `algorithms`, `criticalFirst`, `includeTrace`, `traceLimit?`, `timeLimitMs?` y `allowApproximate`.
 - **Salida:**
-  - `results.<alg>` con `status` (`optimal`, `approximate` o `limit_reached`), `weight`, `cost`, `closingCost`, `expanded`, `maxFrontier`, `ms`, `reopened`, `steps[]`, `leftOut[]`, `trace[]` y `limitAttempts[]`;
+  - `results.<alg>` con `status` (`optimal`, `approximate` o `limit_reached`), `weight`, `cost`, `closingCost`, `expanded`, `maxFrontier`, `ms`, `reopened`, `steps[]`, `leftOut[]`, `trace[]` y `limitAttempts[]`. Cada fila de `trace` es un nodo expandido con `id`, `parent`, `patient`, `attended`, `freeAt`, `isGoal`, `g`, `h`, `f` y `children[] { id, patient, g, h, f }`, los sucesores que generó; con `parent` y `children` se reconstruye el árbol de búsqueda;
   - además `baseline`, `reference`, `cost`, `sameCost`, `reductionPct`, `baselineGapPct` y `alerts[]`.
 - **Pasos:** cada paso trae `{ patient, level, doctor, start, end, delay, penalty, afterGoal }`.
 
@@ -97,7 +97,8 @@ Médicos idénticos; el nivel de triage es un dato de entrada; duraciones fijas 
 - `ALLOWED_ORIGIN_REGEX`: opcional, para los dominios de preview de Vercel, por ejemplo `https://healthcare-[a-z0-9-]+\.vercel\.app`.
 - `SEARCH_TIME_LIMIT_MS`: por algoritmo e intento; 0 = sin límite.
 - `FALLBACK_WEIGHTS`: JSON, por ejemplo `[1.5, 5]`.
-- `TRACE_LIMIT`.
+- `TRACE_LIMIT`: nodos expandidos que se devuelven en la traza si la petición no manda `traceLimit`.
+- `MAX_TRACE_LIMIT`: tope para `traceLimit` (20000 por defecto).
 - `MAX_CSV_BYTES`.
 
 ## Postman

@@ -181,7 +181,9 @@ def test_cors_regex_allows_vercel_previews():
     exact = preflight(client, "https://healthcare.vercel.app")
     preview = preflight(client, "https://healthcare-git-develop-mayte.vercel.app")
     other = preflight(client, "https://otro.vercel.app")
-    assert exact.headers["access-control-allow-origin"] == "https://healthcare.vercel.app"
+    assert (
+        exact.headers["access-control-allow-origin"] == "https://healthcare.vercel.app"
+    )
     assert (
         preview.headers["access-control-allow-origin"]
         == "https://healthcare-git-develop-mayte.vercel.app"

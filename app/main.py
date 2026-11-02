@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from app.api.errors import register_error_handlers
 from app.api.routers import config, health, rooms, scenarios, solve
@@ -20,6 +21,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
     register_error_handlers(app)
     for module in (health, config, scenarios, solve, rooms):
         app.include_router(module.router, prefix="/api")
