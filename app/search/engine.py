@@ -28,6 +28,7 @@ class TraceChild:
     g: int
     h: int
     f: float
+    replaces: int | None = None
 
 
 @dataclass(frozen=True)
@@ -125,6 +126,7 @@ def search(
     reopened = 0
 
     origin: dict[int, tuple[int, str | None]] = {}
+    open_entry: dict[Node, int] = {start: 0}
 
     while frontier:
         max_frontier = max(max_frontier, len(frontier))
@@ -134,10 +136,10 @@ def search(
         if should_stop is not None and should_stop():
             raise SearchCancelledError("La búsqueda se canceló")
         closed.add(node)
-        expanded += 1
         tracing = len(trace) < trace_limit
         children: list[TraceChild] = []
         if node == GOAL_NODE:
+            expanded += 1
             if tracing:
                 trace.append(_trace_row(node, g, h, f, entry_id, origin, children))
             return SearchResult(
@@ -165,10 +167,12 @@ def search(
                 parent,
                 (f, h, 0, entry_id, g, node),
             )
+        successors: list[tuple[Node, int, str | None, int, int]] = []
         for next_node, step_cost, patient_id in problem.iter_successors(node):
             if time_limit_ms is not None:
                 elapsed_ms = (time.perf_counter() - started) * 1000
                 if elapsed_ms >= time_limit_ms:
+                    closed.discard(node)
                     raise _limit_error(
                         expanded,
                         max_frontier,
@@ -183,17 +187,28 @@ def search(
             new_g = g + step_cost
             if new_g >= best_g.get(next_node, new_g + 1):
                 continue
+            new_h = heuristic(problem, next_node)
+            successors.append((next_node, step_cost, patient_id, new_g, new_h))
+        expanded += 1
+        for next_node, step_cost, patient_id, new_g, new_h in successors:
+            if new_g >= best_g.get(next_node, new_g + 1):
+                continue
+            replaces = None
             if next_node in closed:
                 closed.discard(next_node)
                 reopened += 1
+            elif tracing:
+                replaces = open_entry.get(next_node)
             best_g[next_node] = new_g
             parent[next_node] = (node, patient_id, step_cost)
-            new_h = heuristic(problem, next_node)
             child_id = next(counter)
             new_f = new_g + weight * new_h
             if tracing:
                 origin[child_id] = (entry_id, patient_id)
-                children.append(TraceChild(child_id, patient_id, new_g, new_h, new_f))
+                open_entry[next_node] = child_id
+                children.append(
+                    TraceChild(child_id, patient_id, new_g, new_h, new_f, replaces)
+                )
             heapq.heappush(
                 frontier,
                 (new_f, new_h, -_depth(next_node), child_id, new_g, next_node),

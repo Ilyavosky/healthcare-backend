@@ -132,6 +132,7 @@ def to_trace_row_out(row: TraceRow) -> TraceRowOut:
                 g=child.g,
                 h=child.h,
                 f=child.f,
+                replaces=child.replaces,
             )
             for child in row.children
         ],

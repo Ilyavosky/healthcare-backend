@@ -90,3 +90,44 @@ def test_lower_bound_counts_an_interrupted_expansion(example_patients):
         search(problem, full, time_limit_ms=0)
     assert error.value.lower_bound == full(problem, problem.initial_state())
     assert [node.order for node in error.value.best_nodes] == [[]]
+
+
+def replay_open(trace) -> dict[int, float]:
+    open_f = {trace[0].node_id: trace[0].f}
+    for row in trace:
+        open_f.pop(row.node_id, None)
+        for child in row.children:
+            if child.replaces is not None:
+                open_f.pop(child.replaces, None)
+            open_f[child.node_id] = child.f
+    return open_f
+
+
+@pytest.mark.parametrize("seed", range(1, 13))
+@pytest.mark.parametrize("doctors", [1, 2, 3])
+@pytest.mark.parametrize("goal", GOALS)
+def test_replayed_trace_frontier_matches_the_live_frontier(seed, doctors, goal):
+    problem = Problem(random_patients(seed, 7), goal, doctors=doctors)
+    optimum = search(problem, full)
+    if optimum.expanded <= 3:
+        return
+    error = stopped(problem, full, max(2, optimum.expanded // 2))
+    open_f = replay_open(error.trace)
+    assert len(error.trace) == error.expanded
+    assert min(open_f.values()) == error.lower_bound
+    assert {node.node_id for node in error.best_nodes} <= set(open_f)
+
+
+@pytest.mark.parametrize("seed", range(1, 9))
+def test_replaced_entries_were_open_when_replaced(seed):
+    problem = Problem(random_patients(seed, 7), Goal(GoalType.ALL), doctors=2)
+    trace = search(problem, full, trace_limit=100000).trace
+    open_ids = {trace[0].node_id}
+    for row in trace:
+        assert row.node_id in open_ids
+        open_ids.discard(row.node_id)
+        for child in row.children:
+            if child.replaces is not None:
+                assert child.replaces in open_ids
+                open_ids.discard(child.replaces)
+            open_ids.add(child.node_id)

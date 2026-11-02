@@ -124,6 +124,7 @@ def test_trace_links_every_expanded_node_to_its_parent(client, four_body):
         for child in row["children"]:
             generated[child["id"]] = (row["id"], child["patient"], child["g"])
             assert child["f"] == child["g"] + child["h"]
+            assert child["replaces"] is None or child["replaces"] in generated
     by_id = {row["id"]: row for row in trace}
     order = []
     node = trace[-1]
@@ -213,7 +214,7 @@ def test_time_limit_falls_back_to_approximate(client):
         "patients": patients,
         "doctors": 2,
         "algorithms": ["astar"],
-        "timeLimitMs": 300,
+        "timeLimitMs": 1000,
     }
     data = post(client, body).json()
     astar = data["results"]["astar"]

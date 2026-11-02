@@ -61,6 +61,7 @@ class TraceChildOut(CamelModel):
     g: int
     h: int
     f: float
+    replaces: int | None = None
 
 
 class TraceRowOut(CamelModel):
