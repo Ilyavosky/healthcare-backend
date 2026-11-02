@@ -47,14 +47,6 @@ class SolveRequest(CamelModel):
     allow_approximate: StrictBool = True
 
 
-class ProblemOut(CamelModel):
-    patients: list[PatientIn]
-    start: StartIn
-    doctors: int
-    goal: GoalIn
-    critical_first: bool
-
-
 class TraceChildOut(CamelModel):
     id: int
     patient: str | None

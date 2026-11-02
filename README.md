@@ -18,7 +18,7 @@ API y motor de búsqueda del proyecto **Healthcare: Priorización de Urgencias M
 - **Línea base:** `level_order` atiende por nivel, desempata por mayor espera y luego por orden de captura, con el médico que se libera primero y el mismo cierre. `order_cost` evalúa cualquier orden.
 - **Agenda:** `build_schedule(problem, order)` da, por paciente, médico (numerados en el orden en que se capturaron sus minutos de liberación), inicio, fin, retraso, penalización y si quedó fuera de la meta. Siempre suma lo mismo que el costo de la búsqueda.
 - **Alertas:** `ALREADY_LATE`, `EXCEEDS_LIMIT`, `NEAR_LIMIT` (margen de 10 min), `LEFT_OUT` y `LEFT_OUT_CRITICAL`. Solo se devuelve el código y los minutos; los textos los pone el frontend.
-- **Servicio `solve`:** corre los algoritmos pedidos (por defecto `ucs` y `astar`) y la línea base, y calcula `same_cost`, la reducción de nodos contra UCS y la brecha de la base contra el óptimo. Con `time_limit_ms` y `fallback_weights`, si A\* no termina reintenta con A\* ponderado e informa el ε usado. Si ningún algoritmo termina, completa la agenda desde el mejor nodo de la frontera (A\* *anytime*) y la usa si es mejor que la línea base; si no, devuelve la de la línea base.
+- **Servicio `solve`:** corre los algoritmos pedidos (por defecto `ucs` y `astar`) y la línea base, y calcula `same_cost`, la reducción de nodos contra UCS y la brecha de la base contra el óptimo. Con `time_limit_ms` y `fallback_weights`, si A\* no termina reintenta con A\* ponderado e informa el ε usado. Si ningún algoritmo termina, devuelve la agenda de la línea base.
 - **Desempates de la frontera:** a igual f sale primero el de menor h, luego el más profundo, y META gana cualquier empate. Así, cuando todas las agendas cuestan lo mismo (por ejemplo, tantos médicos como pacientes), A\* va directo a la meta en N + 2 expansiones.
 - **Poda exacta por orden irrelevante:** si hay al menos tantos médicos libres como pacientes pendientes y todos se liberan en el mismo minuto, cualquier orden cuesta lo mismo, así que se genera un solo sucesor. Así, 500 pacientes con 500 médicos se resuelven en 55 ms.
 - **Presupuesto de tiempo:** `timeLimitMs` es el total por algoritmo. El intento óptimo usa la mitad y cada reintento ponderado la mitad de lo que queda. El límite también se revisa dentro de cada expansión.
@@ -34,12 +34,12 @@ Médicos idénticos; el nivel de triage es un dato de entrada; duraciones fijas 
 
 | Método | Ruta | Qué hace |
 |---|---|---|
-| GET | `/api/health` | `{ "status": "ok", "database": "configured" \| "not_configured" }` |
+| GET | `/api/health` | `{ "status": "ok" }` |
 | GET | `/api/config` | Niveles (nombre, peso, límite), tipos de meta, algoritmos, códigos de alerta, columnas del CSV y valores por defecto |
 | POST | `/api/scenarios/generate` | `{ n, seed? }` → `{ seed, patients }` reproducible |
 | POST | `/api/scenarios/csv` | Archivo CSV (`multipart/form-data`, campo `file`) → `{ patients }` |
 | POST | `/api/scenarios/csv/export` | `{ patients }` → descarga `escenario.csv` |
-| POST | `/api/solve` | Resuelve sin base de datos |
+| POST | `/api/solve` | Resuelve un escenario en memoria |
 
 **`POST /api/solve`:**
 - **Entrada:**
@@ -63,38 +63,8 @@ Médicos idénticos; el nivel de triage es un dato de entrada; duraciones fijas 
 **Tamaños:**
 - No hay tope para pacientes ni médicos en `/api/solve`; 10¹² médicos funcionan.
 - `/api/scenarios/generate` admite hasta 100 000 pacientes, para proteger la memoria del servidor.
-- En las salas, `doctors` llega hasta 32 767 (columna `smallint`).
-
-### Salas en Supabase
-
-| Método | Ruta | Qué hace |
-|---|---|---|
-| POST | `/api/rooms` | `{ name, shiftStartedAt?, doctors }` → 201. El inicio del turno es ahora si no se manda |
-| GET | `/api/rooms` | Salas, la más reciente primero |
-| GET | `/api/rooms/{roomId}` | Sala, pacientes y `snapshot` (t0, médicos ocupados, espera actual de cada paciente) |
-| PATCH | `/api/rooms/{roomId}` | Cambia `name`, `shiftStartedAt`, `doctors` o `status` (`open` / `closed`) |
-| DELETE | `/api/rooms/{roomId}` | Borra la sala con sus pacientes y corridas |
-| POST | `/api/rooms/{roomId}/patients` | `{ label?, level, durationMin, arrivedAt? }` → 201. Sin `label` se asigna `P1`, `P2`…; sin `arrivedAt`, ahora |
-| PATCH | `/api/rooms/{roomId}/patients/{patientId}` | Edita datos; `attendedAt: null` lo regresa a la espera |
-| POST | `/api/rooms/{roomId}/patients/{patientId}/attend` | `{ doctor?, at? }`; con 1 médico, `doctor` es opcional |
-| DELETE | `/api/rooms/{roomId}/patients/{patientId}` | Elimina un paciente capturado por error |
-| POST | `/api/rooms/{roomId}/solve` | Igual que `/api/solve` (meta, algoritmos, `criticalFirst`, `includeTrace`, `timeLimitMs`, `allowApproximate`) más `at?`. Guarda la corrida y responde 201 con `solveId`, `t0`, `doctorsFreeAt`, `notArrived` y `problem` (lo que resolvió el algoritmo, en minutos) |
-| GET | `/api/rooms/{roomId}/solves` | Historial de corridas (resumen) |
-| GET | `/api/rooms/{roomId}/solves/{solveId}` | Corrida completa: entrada en minutos, base, alertas y resultado de cada algoritmo |
-
-- **Fechas:** ISO 8601 con zona horaria, por ejemplo `2026-10-31T08:00:00-06:00`.
-- **Conversión F20, la foto de la sala en `at`** (o ahora):
-  - `t0` = minutos desde el inicio del turno;
-  - `wait` = minutos esperando ahora − `t0`;
-  - atendidos = los que tienen `attendedAt ≤ at`;
-  - cada médico se libera al terminar su consulta más reciente, o en `t0`;
-  - los pacientes que llegan después de `at` no entran y se reportan en `notArrived`.
-- **Sala cerrada:** se puede consultar, pero no agregar pacientes ni resolver (409 `ROOM_CLOSED`).
-- **Sin Supabase configurado:** las rutas `/api/rooms` responden 503 `DATABASE_NOT_CONFIGURED`. El resto de la API funciona igual.
-- **Instalación:** el SQL de las tablas, RLS y las salas de demostración está en el repo `healthcare-bd`.
 
 **Variables de `.env`:**
-- `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY`: solo aquí, nunca en el frontend ni en el repositorio.
 - `ALLOWED_ORIGIN`: separadas por coma si son varias.
 - `ALLOWED_ORIGIN_REGEX`: opcional, para los dominios de preview de Vercel, por ejemplo `https://healthcare-[a-z0-9-]+\.vercel\.app`.
 - `SEARCH_TIME_LIMIT_MS`: por algoritmo e intento; 0 = sin límite.
@@ -107,8 +77,8 @@ Médicos idénticos; el nivel de triage es un dato de entrada; duraciones fijas 
 
 | Archivo | Para qué |
 |---|---|
-| `postman/healthcare.postman_collection.json` | Recorrido funcional: 40 peticiones |
-| `postman/healthcare-pruebas.postman_collection.json` | Pruebas exhaustivas: 170 peticiones con oráculo independiente |
+| `postman/healthcare.postman_collection.json` | Recorrido funcional: 17 peticiones |
+| `postman/healthcare-pruebas.postman_collection.json` | Pruebas exhaustivas: 160 peticiones con oráculo independiente |
 | `postman/healthcare.postman_environment.json` | Entorno local |
 | `postman/healthcare.railway.postman_environment.json` | Entorno de Railway |
 

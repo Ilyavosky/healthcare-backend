@@ -1,14 +1,12 @@
 from functools import lru_cache
 
-from pydantic import Field, SecretStr
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    supabase_url: str = ""
-    supabase_service_role_key: SecretStr = SecretStr("")
     allowed_origin: str = "http://localhost:3000,http://localhost:5173"
     allowed_origin_regex: str = ""
     search_time_limit_ms: int = Field(10000, ge=0)

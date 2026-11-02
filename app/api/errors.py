@@ -3,24 +3,11 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
-from app.domain.errors import DomainError, ErrorCode
+from app.domain.errors import DomainError
 
-STATUS_BY_CODE: dict[ErrorCode, int] = {
-    ErrorCode.ROOM_NOT_FOUND: 404,
-    ErrorCode.PATIENT_NOT_FOUND: 404,
-    ErrorCode.SOLVE_NOT_FOUND: 404,
-    ErrorCode.DUPLICATE_LABEL: 409,
-    ErrorCode.ROOM_CLOSED: 409,
-    ErrorCode.DATABASE_NOT_CONFIGURED: 503,
-    ErrorCode.DATABASE_ERROR: 503,
-}
 FIELD_NAMES: dict[str, str] = {
     "doctors_free_at": "start.doctorsFreeAt",
     "csv": "file",
-    "duration_min": "durationMin",
-    "arrived_at": "arrivedAt",
-    "attended_at": "attendedAt",
-    "shift_started_at": "shiftStartedAt",
 }
 VALIDATION_MESSAGES: dict[str, str] = {
     "missing": "Falta este campo",
@@ -39,12 +26,6 @@ VALIDATION_MESSAGES: dict[str, str] = {
     "enum": "Valor no permitido",
     "literal_error": "Valor no permitido",
     "json_invalid": "El JSON no es válido",
-    "uuid_parsing": "Debe ser un UUID válido",
-    "uuid_type": "Debe ser un UUID válido",
-    "datetime_parsing": "Debe ser una fecha y hora ISO 8601",
-    "datetime_type": "Debe ser una fecha y hora ISO 8601",
-    "datetime_from_date_parsing": "Debe ser una fecha y hora ISO 8601",
-    "timezone_aware": "La fecha debe incluir zona horaria (por ejemplo -06:00)",
     "dict_type": "Debe ser un objeto",
     "goal_value": "Debe ser un entero (K u horizonte) o una lista de ids",
     "model_type": "Debe ser un objeto",
@@ -83,7 +64,7 @@ def validation_message(error: dict) -> str:
 async def domain_error_handler(request: Request, exc: DomainError) -> JSONResponse:
     field = FIELD_NAMES.get(exc.field, exc.field) if exc.field else None
     return JSONResponse(
-        status_code=STATUS_BY_CODE.get(exc.code, 422),
+        status_code=422,
         content=error_body(exc.code.value, exc.message, field),
     )
 
