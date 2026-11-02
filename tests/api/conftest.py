@@ -7,7 +7,7 @@ from app.main import create_app
 
 @pytest.fixture
 def settings() -> Settings:
-    return Settings(_env_file=None, search_time_limit_ms=10000, max_csv_bytes=5000)
+    return Settings(_env_file=None, search_time_limit_ms=10000)
 
 
 @pytest.fixture

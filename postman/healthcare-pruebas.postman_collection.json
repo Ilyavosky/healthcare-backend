@@ -365,6 +365,9 @@
           "    const shown = json.reference === \"baseline\" ? json.baseline : json.referenceKind === \"anytime\" ? results[json.reference].anytime : results[json.reference];",
           "    pm.expect(json.alerts).to.eql(expectedAlerts(m, shown.steps, shown.leftOut));",
           "  });",
+          "  pm.test(\"[oráculo] Alertas exactas del orden por gravedad\", () => {",
+          "    pm.expect(json.baseline.alerts).to.eql(expectedAlerts(m, json.baseline.steps, json.baseline.leftOut));",
+          "  });",
           "  pm.test(\"[oráculo] doctors en la respuesta\", () => pm.expect(json.doctors).to.eql(m.doctors));",
           "  if (exact !== null) pm.collectionVariables.set(\"lastExact\", String(exact));",
           "}",
@@ -444,38 +447,6 @@
                   "const json = pm.response.json();",
                   "pm.test(\"Vivo\", () => pm.expect(json.status).to.eql(\"ok\"));",
                   "pm.test(\"Solo el estado\", () => pm.expect(Object.keys(json)).to.eql([\"status\"]));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Configuración",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/config",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "config"
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
-                  "const json = pm.response.json();",
-                  "pm.test(\"Pesos\", () => pm.expect(json.levels.map(l => l.weight)).to.eql([16, 8, 4, 2, 1]));",
-                  "pm.test(\"Límites\", () => pm.expect(json.levels.map(l => l.limit)).to.eql([0, 10, 60, 120, 240]));",
-                  "pm.test(\"Metas\", () => pm.expect(json.goalTypes).to.eql([\"all\", \"critical\", \"k\", \"horizon\", \"subset\"]));"
                 ]
               }
             }
@@ -8426,53 +8397,6 @@
                   "const json = pm.response.json();",
                   "pm.test(\"Código de error\", () => pm.expect(json.code).to.eql(\"VALIDATION_ERROR\"));",
                   "pm.test(\"Campo señalado\", () => pm.expect(json.field).to.eql(\"n\"));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Exportar CSV con paciente inválido",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/scenarios/csv/export",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "scenarios",
-                "csv",
-                "export"
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"patients\": [\n    {\n      \"id\": \"P1\",\n      \"level\": 9,\n      \"wait\": 5,\n      \"duration\": 20\n    }\n  ]\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"HTTP 422\", () => pm.response.to.have.status(422));",
-                  "const json = pm.response.json();",
-                  "pm.test(\"Código de error\", () => pm.expect(json.code).to.eql(\"VALIDATION_ERROR\"));",
-                  "pm.test(\"Campo señalado\", () => pm.expect(json.field).to.eql(\"patients[0].level\"));"
                 ]
               }
             }

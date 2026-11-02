@@ -14,10 +14,10 @@ API y motor de búsqueda del proyecto **Healthcare: Priorización de Urgencias M
 - **Regla de seguridad (`critical_first`):** si hay un Nivel 1 pendiente que cabe, solo se puede atender a un Nivel 1.
 - **Algoritmos:** `ucs` (h = 0), `astar_simple` (penalización de los pendientes si empezaran en `l1`) y `astar` (la anterior más la espera mínima extra: el k-ésimo en empezar lo hace como pronto en `min(L[k], l1 + d_min)` si k < M, o tras las ⌊k/M⌋ consultas más cortas si k ≥ M). Las dos heurísticas son admisibles; `astar` puede ser inconsistente con varios médicos, por eso el motor reabre nodos cerrados cuando encuentra un g mejor (`SearchResult.reopened`) y conserva la optimalidad.
 - **A\* ponderado:** `search(..., weight=ε)` usa f = g + ε·h; termina mucho antes en salas grandes y garantiza costo ≤ ε · óptimo.
-- **Escenarios:** `generate_patients(n, seed)` (reproducible, probabilidades y rangos por nivel) y `patients_to_csv` / `patients_from_csv` con columnas `patient_id,level,wait,duration`.
+- **Escenarios:** `generate_patients(n, seed)` (reproducible, probabilidades y rangos por nivel).
 - **Línea base:** `level_order` atiende por nivel, desempata por mayor espera y luego por orden de captura, con el médico que se libera primero y el mismo cierre. `order_cost` evalúa cualquier orden.
 - **Agenda:** `build_schedule(problem, order)` da, por paciente, médico (numerados en el orden en que se capturaron sus minutos de liberación), inicio, fin, retraso, penalización y si quedó fuera de la meta. Siempre suma lo mismo que el costo de la búsqueda.
-- **Alertas:** `ALREADY_LATE`, `EXCEEDS_LIMIT`, `NEAR_LIMIT` (margen de 10 min), `LEFT_OUT` y `LEFT_OUT_CRITICAL`. Solo se devuelve el código y los minutos; los textos los pone el frontend.
+- **Alertas:** `ALREADY_LATE`, `EXCEEDS_LIMIT`, `NEAR_LIMIT` (margen de 10 min), `LEFT_OUT` y `LEFT_OUT_CRITICAL`, para la agenda mostrada y para el orden por gravedad. Solo se devuelve el código y los minutos; los textos los pone el frontend.
 - **Servicio `solve`:** corre los algoritmos pedidos (por defecto `ucs` y `astar`) y la línea base, y calcula `same_cost`, la reducción de nodos contra UCS y la brecha de la base contra el óptimo. Con `time_limit_ms` y `fallback_weights`, si A\* no termina reintenta con A\* ponderado e informa el ε usado. Si ningún algoritmo termina, devuelve la agenda de la línea base.
 - **Desempates de la frontera:** a igual f sale primero el de menor h, luego el más profundo, y META gana cualquier empate. Así, cuando todas las agendas cuestan lo mismo (por ejemplo, tantos médicos como pacientes), A\* va directo a la meta en N + 2 expansiones.
 - **Poda exacta por orden irrelevante:** si hay al menos tantos médicos libres como pacientes pendientes y todos se liberan en el mismo minuto, cualquier orden cuesta lo mismo, así que se genera un solo sucesor. Así, 500 pacientes con 500 médicos se resuelven en 55 ms.
@@ -35,10 +35,7 @@ Médicos idénticos; el nivel de triage es un dato de entrada; duraciones fijas 
 | Método | Ruta | Qué hace |
 |---|---|---|
 | GET | `/api/health` | `{ "status": "ok" }` |
-| GET | `/api/config` | Niveles (nombre, peso, límite), tipos de meta, algoritmos, códigos de alerta, columnas del CSV y valores por defecto |
 | POST | `/api/scenarios/generate` | `{ n, seed? }` → `{ seed, patients }` reproducible |
-| POST | `/api/scenarios/csv` | Archivo CSV (`multipart/form-data`, campo `file`) → `{ patients }` |
-| POST | `/api/scenarios/csv/export` | `{ patients }` → descarga `escenario.csv` |
 | POST | `/api/solve` | Resuelve un escenario en memoria |
 
 **`POST /api/solve`:**
@@ -47,8 +44,8 @@ Médicos idénticos; el nivel de triage es un dato de entrada; duraciones fijas 
   - `start` con `{ attended, t0, doctorsFreeAt? }`;
   - `doctors`, `goal` con `{ type, value }`, `algorithms`, `criticalFirst`, `includeTrace`, `traceLimit?`, `timeLimitMs?` y `allowApproximate`.
 - **Salida:**
-  - `results.<alg>` con `status` (`optimal`, `approximate` o `limit_reached`), `weight`, `cost`, `closingCost`, `expanded`, `maxFrontier`, `ms`, `reopened`, `steps[]`, `leftOut[]`, `trace[]` y `limitAttempts[]`. Cada fila de `trace` es un nodo expandido con `id`, `parent`, `patient`, `attended`, `freeAt`, `isGoal`, `g`, `h`, `f` y `children[] { id, patient, g, h, f, replaces }`, los sucesores que generó; `replaces` es el id de la entrada de la frontera que ese hijo deja obsoleta por llegar al mismo estado con menor g. Con `parent` y `children` se reconstruye el árbol de búsqueda, y quitando los `replaces` se obtiene la frontera real;
-  - además `baseline`, `reference`, `cost`, `sameCost`, `reductionPct`, `baselineGapPct` y `alerts[]`.
+  - `results.<alg>` con `status` (`optimal`, `approximate` o `limit_reached`), `weight`, `cost`, `closingCost`, `expanded`, `maxFrontier`, `ms`, `reopened`, `steps[]`, `leftOut[]`, `trace[]` y `limitAttempts[]`. Cada fila de `trace` es un nodo expandido con `id`, `parent`, `patient`, `isGoal`, `g`, `h`, `f` y `children[] { id, patient, g, h, f, replaces }`, los sucesores que generó; `replaces` es el id de la entrada de la frontera que ese hijo deja obsoleta por llegar al mismo estado con menor g. Con `parent` y `children` se reconstruye el árbol de búsqueda, y quitando los `replaces` se obtiene la frontera real;
+  - además `baseline` (orden por gravedad con su agenda y sus propias `alerts[]`), `reference`, `cost`, `sameCost`, `reductionPct`, `baselineGapPct` y `alerts[]`.
   - `referenceKind` dice qué agenda se muestra: `optimal`, `approximate` (A\* ponderado), `anytime` o `baseline` (orden por gravedad).
 - **Si un algoritmo no termina** (`limit_reached`): devuelve la traza parcial del intento con ε = 1 y `anytime { nodeId, searchSteps, cost, lowerBound, steps[], leftOut[] }`. Es la agenda que sale de completar por triage el mejor nodo de la frontera; `searchSteps` son los pasos que eligió la búsqueda, `nodeId` es el nodo de la traza del que parte (−1 si salió de un intento ponderado) y `lowerBound` es la menor g + h de la frontera, una cota inferior del óptimo. Si esa agenda cuesta menos que el orden por gravedad, es la que se muestra (`referenceKind: anytime`).
 - **Pasos:** cada paso trae `{ patient, level, doctor, start, end, delay, penalty, afterGoal }`.
@@ -71,14 +68,13 @@ Médicos idénticos; el nivel de triage es un dato de entrada; duraciones fijas 
 - `FALLBACK_WEIGHTS`: JSON, por ejemplo `[1.5, 5]`.
 - `TRACE_LIMIT`: nodos expandidos que se devuelven en la traza si la petición no manda `traceLimit`.
 - `MAX_TRACE_LIMIT`: tope para `traceLimit` (30000 por defecto).
-- `MAX_CSV_BYTES`.
 
 ## Postman
 
 | Archivo | Para qué |
 |---|---|
-| `postman/healthcare.postman_collection.json` | Recorrido funcional: 17 peticiones |
-| `postman/healthcare-pruebas.postman_collection.json` | Pruebas exhaustivas: 160 peticiones con oráculo independiente |
+| `postman/healthcare.postman_collection.json` | Recorrido funcional: 14 peticiones |
+| `postman/healthcare-pruebas.postman_collection.json` | Pruebas exhaustivas: 158 peticiones con oráculo independiente |
 | `postman/healthcare.postman_environment.json` | Entorno local |
 | `postman/healthcare.railway.postman_environment.json` | Entorno de Railway |
 

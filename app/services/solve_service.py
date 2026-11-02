@@ -60,6 +60,7 @@ class SolveOutcome:
     runs: dict[AlgorithmName, AlgorithmRun]
     baseline: BaselineResult
     baseline_schedule: Schedule
+    baseline_alerts: list[Alert]
     reference: AlgorithmName | None
     reference_kind: str
     schedule: Schedule
@@ -120,6 +121,7 @@ def solve(
         runs=runs,
         baseline=baseline,
         baseline_schedule=baseline_schedule,
+        baseline_alerts=build_alerts(problem, baseline_schedule),
         reference=reference,
         reference_kind=reference_kind,
         schedule=schedule,

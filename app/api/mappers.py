@@ -16,7 +16,7 @@ from app.domain.patient import Patient
 from app.domain.problem import Problem, State
 from app.search.anytime import AnytimeResult
 from app.search.engine import TraceRow
-from app.search.report import ScheduleStep
+from app.search.report import Alert, ScheduleStep
 from app.services.solve_service import AlgorithmRun, SolveOutcome
 
 BASELINE_REFERENCE = "baseline"
@@ -74,14 +74,11 @@ def to_step_out(step: ScheduleStep) -> StepOut:
 
 
 def to_trace_row_out(row: TraceRow) -> TraceRowOut:
-    is_state = isinstance(row.state, State)
     return TraceRowOut(
         id=row.node_id,
         parent=row.parent_id,
         patient=row.patient_id,
-        attended=sorted(row.state.attended) if is_state else None,
-        free_at=list(row.state.free_at) if is_state else None,
-        is_goal=not is_state,
+        is_goal=not isinstance(row.state, State),
         g=row.g,
         h=row.h,
         f=row.f,
@@ -172,14 +169,16 @@ def to_solve_response(problem: Problem, outcome: SolveOutcome) -> SolveResponse:
             order=outcome.baseline.order,
             steps=[to_step_out(step) for step in outcome.baseline_schedule.steps],
             left_out=[to_step_out(step) for step in outcome.baseline_schedule.left_out],
+            alerts=[to_alert_out(alert) for alert in outcome.baseline_alerts],
         ),
         same_cost=outcome.same_cost,
         reduction_pct={name.value: pct for name, pct in outcome.reduction_pct.items()},
         baseline_gap_pct=outcome.baseline_gap_pct,
-        alerts=[
-            AlertOut(
-                patient=alert.patient_id, code=alert.code.value, minutes=alert.minutes
-            )
-            for alert in outcome.alerts
-        ],
+        alerts=[to_alert_out(alert) for alert in outcome.alerts],
+    )
+
+
+def to_alert_out(alert: Alert) -> AlertOut:
+    return AlertOut(
+        patient=alert.patient_id, code=alert.code.value, minutes=alert.minutes
     )

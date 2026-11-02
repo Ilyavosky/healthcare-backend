@@ -1,14 +1,11 @@
 import pytest
 
-from app.domain.errors import DomainError, ErrorCode
+from app.domain.errors import DomainError
 from app.search.generator import (
-    CSV_COLUMNS,
     DURATION_RANGES,
     LEVEL_PROBABILITIES,
     WAIT_RANGES,
     generate_patients,
-    patients_from_csv,
-    patients_to_csv,
 )
 
 
@@ -56,39 +53,3 @@ def test_needs_at_least_one_patient(n):
     with pytest.raises(DomainError) as error:
         generate_patients(n, 1)
     assert error.value.field == "n"
-
-
-def test_csv_round_trip():
-    patients = generate_patients(15, 4)
-    text = patients_to_csv(patients)
-    assert text.splitlines()[0] == ",".join(CSV_COLUMNS)
-    assert patients_from_csv(text) == patients
-
-
-def test_csv_accepts_spaces_bom_and_any_column_order():
-    text = "﻿duration, level ,patient_id,wait\n 20 , 2 , P1 , 5 \n5,3,P2,40\n"
-    patients = patients_from_csv(text)
-    assert [(p.patient_id, p.level, p.wait, p.duration) for p in patients] == [
-        ("P1", 2, 5, 20),
-        ("P2", 3, 40, 5),
-    ]
-
-
-@pytest.mark.parametrize(
-    "text, fragment",
-    [
-        ("", "columnas"),
-        ("patient_id,level,wait\nP1,2,5\n", "columnas"),
-        ("patient_id,level,wait,duration\n", "no tiene pacientes"),
-        ("patient_id,level,wait,duration\nP1,9,5,20\n", "Fila 2"),
-        ("patient_id,level,wait,duration\nP1,2,5,0\n", "Fila 2"),
-        ("patient_id,level,wait,duration\nP1,2,5,20\nP2,x,1,5\n", "Fila 3"),
-        ("patient_id,level,wait,duration\n,2,5,20\n", "falta el id"),
-    ],
-)
-def test_invalid_csv(text, fragment):
-    with pytest.raises(DomainError) as error:
-        patients_from_csv(text)
-    assert error.value.code == ErrorCode.INVALID_CSV
-    assert error.value.field == "csv"
-    assert fragment in error.value.message

@@ -7,7 +7,6 @@ from app.domain.errors import DomainError
 
 FIELD_NAMES: dict[str, str] = {
     "doctors_free_at": "start.doctorsFreeAt",
-    "csv": "file",
 }
 VALIDATION_MESSAGES: dict[str, str] = {
     "missing": "Falta este campo",

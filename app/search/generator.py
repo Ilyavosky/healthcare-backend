@@ -1,5 +1,3 @@
-import csv
-import io
 import random
 
 from app.domain.errors import DomainError, ErrorCode
@@ -20,7 +18,6 @@ DURATION_RANGES: dict[int, tuple[int, int]] = {
     4: (5, 15),
     5: (5, 10),
 }
-CSV_COLUMNS: tuple[str, ...] = ("patient_id", "level", "wait", "duration")
 
 
 def generate_patients(n: int, seed: int) -> list[Patient]:
@@ -37,52 +34,4 @@ def generate_patients(n: int, seed: int) -> list[Patient]:
         wait = rng.randint(*WAIT_RANGES[level])
         duration = rng.randint(*DURATION_RANGES[level])
         patients.append(Patient(f"P{i}", level, wait, duration))
-    return patients
-
-
-def patients_to_csv(patients: list[Patient]) -> str:
-    buffer = io.StringIO()
-    writer = csv.writer(buffer, lineterminator="\n")
-    writer.writerow(CSV_COLUMNS)
-    for p in patients:
-        writer.writerow((p.patient_id, p.level, p.wait, p.duration))
-    return buffer.getvalue()
-
-
-def patients_from_csv(text: str) -> list[Patient]:
-    reader = csv.DictReader(io.StringIO(text.lstrip("﻿")))
-    if reader.fieldnames is None or set(CSV_COLUMNS) - {
-        name.strip() for name in reader.fieldnames
-    }:
-        raise DomainError(
-            ErrorCode.INVALID_CSV,
-            f"El CSV debe tener las columnas {', '.join(CSV_COLUMNS)}",
-            "csv",
-        )
-    patients = []
-    for row_number, row in enumerate(reader, start=2):
-        values = {key.strip(): (value or "").strip() for key, value in row.items()}
-        try:
-            patient = Patient(
-                values["patient_id"],
-                int(values["level"]),
-                int(values["wait"]),
-                int(values["duration"]),
-            )
-        except ValueError as error:
-            message = (
-                error.message
-                if isinstance(error, DomainError)
-                else "level, wait y duration deben ser números enteros"
-            )
-            raise DomainError(
-                ErrorCode.INVALID_CSV, f"Fila {row_number}: {message}", "csv"
-            ) from error
-        if not patient.patient_id:
-            raise DomainError(
-                ErrorCode.INVALID_CSV, f"Fila {row_number}: falta el id", "csv"
-            )
-        patients.append(patient)
-    if not patients:
-        raise DomainError(ErrorCode.INVALID_CSV, "El CSV no tiene pacientes", "csv")
     return patients

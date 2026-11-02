@@ -16,7 +16,6 @@ from app.search.report import (
     baseline_gap_pct,
     build_alerts,
     build_schedule,
-    doctor_loads,
     reduction_pct,
 )
 
@@ -55,7 +54,6 @@ def test_two_doctors(four_patients):
         ("P1", 2, 10, 30, 5, 40),
         ("P2", 1, 30, 35, 10, 40),
     ]
-    assert doctor_loads(schedule) == {1: ["P3", "P2"], 2: ["P4", "P1"]}
 
 
 def test_doctor_numbers_follow_input_order(four_patients):

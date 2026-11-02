@@ -100,8 +100,6 @@ def test_trace(client, example_body):
         "id": 0,
         "parent": -1,
         "patient": None,
-        "attended": [],
-        "freeAt": [0],
         "isGoal": False,
         "g": 0,
         "h": 0,
@@ -110,7 +108,6 @@ def test_trace(client, example_body):
     assert [child["patient"] for child in trace[0]["children"]] == ["P1", "P2", "P3"]
     assert [row["f"] for row in trace] == [0, 240, 260, 280, 280, 280]
     assert trace[-1]["isGoal"] is True
-    assert trace[-1]["attended"] is None
 
 
 def test_trace_links_every_expanded_node_to_its_parent(client, four_body):
@@ -385,3 +382,14 @@ def test_invalid_json(client):
     )
     assert response.status_code == 422
     assert response.json()["code"] == "VALIDATION_ERROR"
+
+
+def test_baseline_has_its_own_alerts(client, example_body):
+    data = post(client, example_body).json()
+    assert data["baseline"]["order"] == ["P3", "P1", "P2"]
+    assert data["baseline"]["alerts"] == [
+        {"patient": "P3", "code": "NEAR_LIMIT", "minutes": 0},
+        {"patient": "P1", "code": "EXCEEDS_LIMIT", "minutes": 25},
+        {"patient": "P2", "code": "EXCEEDS_LIMIT", "minutes": 30},
+    ]
+    assert data["alerts"] != data["baseline"]["alerts"]

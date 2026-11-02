@@ -125,10 +125,3 @@ def baseline_gap_pct(baseline_cost: int, optimal_cost: int) -> float | None:
     if optimal_cost == 0:
         return 0.0 if baseline_cost == 0 else None
     return round(100 * (baseline_cost - optimal_cost) / optimal_cost, 2)
-
-
-def doctor_loads(schedule: Schedule) -> dict[int, list[str]]:
-    loads: dict[int, list[str]] = {}
-    for step in schedule.all_steps:
-        loads.setdefault(step.doctor, []).append(step.patient_id)
-    return dict(sorted(loads.items()))

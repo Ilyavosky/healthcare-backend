@@ -38,37 +38,6 @@
               }
             }
           ]
-        },
-        {
-          "name": "Configuración",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/config",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "config"
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
-                  "const json = pm.response.json();",
-                  "pm.test(\"Cinco niveles\", () => pm.expect(json.levels.length).to.eql(5));",
-                  "pm.test(\"Límites Manchester\", () => pm.expect(json.levels.map(l => l.limit)).to.eql([0, 10, 60, 120, 240]));"
-                ]
-              }
-            }
-          ]
         }
       ]
     },
@@ -669,94 +638,6 @@
                   "pm.test(\"Semilla\", () => pm.expect(json.seed).to.eql(42));",
                   "pm.test(\"10 pacientes\", () => pm.expect(json.patients.length).to.eql(10));",
                   "pm.collectionVariables.set(\"generatedPatients\", JSON.stringify(json.patients));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Exportar CSV",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/scenarios/csv/export",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "scenarios",
-                "csv",
-                "export"
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"patients\": {{generatedPatients}}\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
-                  "pm.test(\"Es CSV\", () => pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"text/csv\"));",
-                  "pm.test(\"Encabezado\", () => pm.expect(pm.response.text().split(\"\\n\")[0]).to.eql(\"patient_id,level,wait,duration\"));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Importar CSV (elige el archivo)",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/scenarios/csv",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "scenarios",
-                "csv"
-              ]
-            },
-            "description": "Selecciona en Body → form-data el archivo escenario.csv que descargaste con «Exportar CSV». En el runner se omite si no hay archivo.",
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "file",
-                  "type": "file",
-                  "src": []
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code !== 422) {",
-                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
-                  "}"
                 ]
               }
             }

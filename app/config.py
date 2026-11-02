@@ -13,7 +13,6 @@ class Settings(BaseSettings):
     fallback_weights: list[float] = Field(default_factory=lambda: [1.5, 5])
     trace_limit: int = Field(500, ge=0)
     max_trace_limit: int = Field(30000, ge=0)
-    max_csv_bytes: int = Field(2_000_000, gt=0)
 
     @property
     def allowed_origins(self) -> list[str]:

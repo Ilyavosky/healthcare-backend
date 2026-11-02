@@ -10,13 +10,6 @@ class GenerateRequest(CamelModel):
     seed: StrictInt | None = None
 
 
-class PatientsOut(CamelModel):
-    patients: list[PatientIn]
-
-
-class GenerateResponse(PatientsOut):
+class GenerateResponse(CamelModel):
     seed: int
-
-
-class ExportRequest(CamelModel):
-    patients: list[PatientIn] = Field(min_length=1)
+    patients: list[PatientIn]

@@ -60,8 +60,6 @@ class TraceRowOut(CamelModel):
     id: int
     parent: int
     patient: str | None
-    attended: list[str] | None
-    free_at: list[int] | None
     is_goal: bool
     g: int
     h: int
@@ -106,6 +104,7 @@ class BaselineOut(CamelModel):
     order: list[str]
     steps: list[StepOut]
     left_out: list[StepOut]
+    alerts: list[AlertOut]
 
 
 class SolveResponse(CamelModel):

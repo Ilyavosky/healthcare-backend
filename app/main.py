@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
 from app.api.errors import register_error_handlers
-from app.api.routers import config, health, scenarios, solve
+from app.api.routers import health, scenarios, solve
 from app.config import Settings, get_settings
 
 
@@ -23,7 +23,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.add_middleware(GZipMiddleware, minimum_size=1000)
     register_error_handlers(app)
-    for module in (health, config, scenarios, solve):
+    for module in (health, scenarios, solve):
         app.include_router(module.router, prefix="/api")
     if settings is not get_settings():
         app.dependency_overrides[get_settings] = lambda: settings
