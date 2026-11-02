@@ -401,6 +401,7 @@ def _new_result(run: AlgorithmRun) -> NewSolveResult:
         for limit in run.limits
     ]
     if not run.finished:
+        anytime = run.anytime.schedule if run.anytime is not None else None
         return NewSolveResult(
             run.name.value,
             "limit_reached",
@@ -410,8 +411,8 @@ def _new_result(run: AlgorithmRun) -> NewSolveResult:
             None,
             None,
             None,
-            [],
-            [],
+            [step_record(s) for s in anytime.steps] if anytime else [],
+            [step_record(s) for s in anytime.left_out] if anytime else [],
             attempts,
         )
     return NewSolveResult(

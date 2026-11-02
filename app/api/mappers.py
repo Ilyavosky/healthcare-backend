@@ -13,6 +13,7 @@ from app.api.schemas.rooms import (
 )
 from app.api.schemas.solve import (
     AlgorithmResultOut,
+    AnytimeOut,
     AttemptOut,
     BaselineOut,
     GoalIn,
@@ -33,6 +34,7 @@ from app.ports.room_repository import (
     SolveRecord,
     SolveResultRecord,
 )
+from app.search.anytime import AnytimeResult
 from app.search.engine import TraceRow
 from app.search.heuristics import AlgorithmName
 from app.search.report import ScheduleStep
@@ -136,6 +138,17 @@ def to_trace_row_out(row: TraceRow) -> TraceRowOut:
     )
 
 
+def to_anytime_out(anytime: AnytimeResult) -> AnytimeOut:
+    return AnytimeOut(
+        node_id=anytime.node_id,
+        search_steps=anytime.search_steps,
+        cost=anytime.cost,
+        lower_bound=anytime.lower_bound,
+        steps=[to_step_out(step) for step in anytime.schedule.steps],
+        left_out=[to_step_out(step) for step in anytime.schedule.left_out],
+    )
+
+
 def to_algorithm_result_out(run: AlgorithmRun) -> AlgorithmResultOut:
     attempts = [
         AttemptOut(
@@ -158,8 +171,9 @@ def to_algorithm_result_out(run: AlgorithmRun) -> AlgorithmResultOut:
             reopened=None,
             steps=[],
             left_out=[],
-            trace=[],
+            trace=[to_trace_row_out(row) for row in run.partial_trace],
             limit_attempts=attempts,
+            anytime=to_anytime_out(run.anytime) if run.anytime else None,
         )
     result = run.result
     schedule = run.schedule
@@ -185,6 +199,7 @@ def to_solve_response(problem: Problem, outcome: SolveOutcome) -> SolveResponse:
     )
     return SolveResponse(
         reference=reference,
+        reference_kind=outcome.reference_kind,
         cost=outcome.cost,
         doctors=problem.doctors,
         results={

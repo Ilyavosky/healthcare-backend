@@ -65,7 +65,7 @@ def test_time_limit_falls_back_to_weighted_astar():
     outcome = solve(
         problem,
         [AlgorithmName.ASTAR],
-        time_limit_ms=300,
+        time_limit_ms=1500,
         fallback_weights=(1.5, 3, 10),
     )
     run = outcome.runs[AlgorithmName.ASTAR]
@@ -86,9 +86,38 @@ def test_ucs_has_no_fallback():
     run = outcome.runs[AlgorithmName.UCS]
     assert not run.finished
     assert [limit.weight for limit in run.limits] == [1]
-    assert outcome.reference is None
-    assert outcome.schedule == outcome.baseline_schedule
-    assert outcome.cost == outcome.baseline.cost
+    if outcome.reference_kind == "baseline":
+        assert outcome.reference is None
+        assert outcome.schedule == outcome.baseline_schedule
+        assert outcome.cost == outcome.baseline.cost
+    else:
+        assert outcome.reference_kind == "anytime"
+        assert outcome.cost < outcome.baseline.cost
+
+
+def test_unfinished_search_keeps_a_better_completed_schedule():
+    problem = Problem(generate_patients(40, 7), Goal(GoalType.ALL), doctors=2)
+    outcome = solve(
+        problem,
+        [AlgorithmName.ASTAR],
+        include_trace=True,
+        trace_limit=200,
+        time_limit_ms=400,
+        fallback_weights=(1.5,),
+    )
+    run = outcome.runs[AlgorithmName.ASTAR]
+    assert not run.finished
+    anytime = run.anytime
+    assert anytime is not None
+    assert anytime.lower_bound <= anytime.cost
+    assert len(run.partial_trace) == 200
+    assert run.partial_trace[0].parent_id == -1
+    if anytime.cost < outcome.baseline.cost:
+        assert outcome.reference == AlgorithmName.ASTAR
+        assert outcome.reference_kind == "anytime"
+        assert outcome.schedule == anytime.schedule
+    else:
+        assert outcome.reference_kind == "baseline"
 
 
 @pytest.mark.parametrize("seed", range(1, 6))

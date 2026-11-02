@@ -1,6 +1,7 @@
 import heapq
 import itertools
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from app.domain.constants import GOAL_NODE
@@ -64,14 +65,39 @@ class NoSolutionError(RuntimeError):
     pass
 
 
+class SearchCancelledError(RuntimeError):
+    pass
+
+
+@dataclass(frozen=True)
+class FrontierNode:
+    node_id: int
+    state: State
+    g: int
+    h: int
+    f: float
+    order: list[str]
+
+
 class SearchLimitError(RuntimeError):
-    def __init__(self, expanded: int, max_frontier: int, elapsed_ms: float) -> None:
+    def __init__(
+        self,
+        expanded: int,
+        max_frontier: int,
+        elapsed_ms: float,
+        trace: list[TraceRow] | None = None,
+        lower_bound: float | None = None,
+        best_nodes: list[FrontierNode] | None = None,
+    ) -> None:
         super().__init__(
             f"Se alcanzó el límite de búsqueda tras expandir {expanded} nodos"
         )
         self.expanded = expanded
         self.max_frontier = max_frontier
         self.elapsed_ms = elapsed_ms
+        self.trace = trace or []
+        self.lower_bound = lower_bound
+        self.best_nodes = best_nodes or []
 
 
 def search(
@@ -81,6 +107,7 @@ def search(
     max_expanded: int | None = None,
     time_limit_ms: float | None = None,
     weight: float = 1,
+    should_stop: Callable[[], bool] | None = None,
 ) -> SearchResult:
     started = time.perf_counter()
     counter = itertools.count()
@@ -104,6 +131,8 @@ def search(
         f, h, _, entry_id, g, node = heapq.heappop(frontier)
         if node in closed or g > best_g[node]:
             continue
+        if should_stop is not None and should_stop():
+            raise SearchCancelledError("La búsqueda se canceló")
         closed.add(node)
         expanded += 1
         tracing = len(trace) < trace_limit
@@ -124,12 +153,33 @@ def search(
         if (max_expanded is not None and expanded >= max_expanded) or (
             time_limit_ms is not None and elapsed_ms >= time_limit_ms
         ):
-            raise SearchLimitError(expanded, max_frontier, elapsed_ms)
+            closed.discard(node)
+            raise _limit_error(
+                expanded,
+                max_frontier,
+                elapsed_ms,
+                trace,
+                frontier,
+                best_g,
+                closed,
+                parent,
+                (f, h, 0, entry_id, g, node),
+            )
         for next_node, step_cost, patient_id in problem.iter_successors(node):
             if time_limit_ms is not None:
                 elapsed_ms = (time.perf_counter() - started) * 1000
                 if elapsed_ms >= time_limit_ms:
-                    raise SearchLimitError(expanded, max_frontier, elapsed_ms)
+                    raise _limit_error(
+                        expanded,
+                        max_frontier,
+                        elapsed_ms,
+                        trace,
+                        frontier,
+                        best_g,
+                        closed,
+                        parent,
+                        (f, h, 0, entry_id, g, node),
+                    )
             new_g = g + step_cost
             if new_g >= best_g.get(next_node, new_g + 1):
                 continue
@@ -152,6 +202,53 @@ def search(
             trace.append(_trace_row(node, g, h, f, entry_id, origin, children))
 
     raise NoSolutionError("La búsqueda terminó sin llegar a la meta")
+
+
+BEST_NODES = 64
+
+
+def _limit_error(
+    expanded: int,
+    max_frontier: int,
+    elapsed_ms: float,
+    trace: list[TraceRow],
+    frontier: list[tuple[float, int, int, int, int, Node]],
+    best_g: dict[Node, int],
+    closed: set[Node],
+    parent: dict[Node, tuple[State, str | None, int]],
+    interrupted: tuple[float, int, int, int, int, Node],
+) -> SearchLimitError:
+    live = [
+        entry
+        for entry in frontier
+        if entry[5] not in closed and entry[4] == best_g.get(entry[5])
+    ]
+    live.append(interrupted)
+    lower_bound = min(entry[4] + entry[1] for entry in live)
+    by_f = heapq.nsmallest(BEST_NODES, live)
+    deepest = heapq.nsmallest(BEST_NODES // 4, live, key=lambda e: (e[2], e[0]))
+    chosen: dict[int, tuple[float, int, int, int, int, Node]] = {}
+    for entry in by_f + deepest:
+        if isinstance(entry[5], State):
+            chosen[entry[3]] = entry
+    best_nodes = [
+        FrontierNode(
+            node_id=entry_id,
+            state=node,
+            g=g,
+            h=h,
+            f=f,
+            order=[
+                step.patient_id
+                for step in _reconstruct_path(parent, node)
+                if step.patient_id is not None
+            ],
+        )
+        for f, h, _, entry_id, g, node in chosen.values()
+    ]
+    return SearchLimitError(
+        expanded, max_frontier, elapsed_ms, trace, lower_bound, best_nodes
+    )
 
 
 def _trace_row(

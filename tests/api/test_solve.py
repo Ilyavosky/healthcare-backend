@@ -239,8 +239,23 @@ def test_without_approximation_returns_baseline(client):
     data = post(client, body).json()
     assert data["results"]["ucs"]["status"] == "limit_reached"
     assert data["results"]["ucs"]["cost"] is None
-    assert data["reference"] == "baseline"
-    assert data["cost"] == data["baseline"]["cost"]
+    anytime = data["results"]["ucs"]["anytime"]
+    assert anytime["lowerBound"] <= anytime["cost"]
+    assert anytime["cost"] == sum(
+        step["penalty"] for step in anytime["steps"] + anytime["leftOut"]
+    )
+    if anytime["cost"] < data["baseline"]["cost"]:
+        assert (data["reference"], data["referenceKind"]) == ("ucs", "anytime")
+        assert data["cost"] == anytime["cost"]
+    else:
+        assert (data["reference"], data["referenceKind"]) == ("baseline", "baseline")
+        assert data["cost"] == data["baseline"]["cost"]
+
+
+def test_reference_kind_reports_optimal_results(client, example_body):
+    data = post(client, example_body).json()
+    assert (data["reference"], data["referenceKind"]) == ("astar", "optimal")
+    assert data["results"]["astar"]["anytime"] is None
 
 
 def test_time_limit_zero_means_no_limit(client, example_body):

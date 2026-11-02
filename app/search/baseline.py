@@ -35,11 +35,12 @@ def order_cost(problem: Problem, order: list[str]) -> int:
     return total + problem.closing_cost(state)
 
 
-def level_order(problem: Problem) -> BaselineResult:
-    start = problem.initial_state()
+def level_order(problem: Problem, start: State | None = None) -> BaselineResult:
+    start = start or problem.initial_state()
     queue = sorted(problem.pending(start), key=lambda p: level_key(problem, p))
     free_at = list(start.free_at)
-    tracker = _GoalTracker(problem, queue)
+    already = len(start.attended) - len(problem.initial_state().attended)
+    tracker = _GoalTracker(problem, queue, already)
     taken = [False] * len(queue)
     order: list[str] = []
     total = 0
@@ -75,12 +76,14 @@ def _first_fitting(
 
 
 class _GoalTracker:
-    def __init__(self, problem: Problem, pending: list[Patient]) -> None:
+    def __init__(
+        self, problem: Problem, pending: list[Patient], already: int = 0
+    ) -> None:
         self.problem = problem
         self.goal = problem.goal
         self.remaining = len(pending)
         self.critical = sum(1 for p in pending if p.level <= CRITICAL_MAX_LEVEL)
-        self.attended = 0
+        self.attended = already
         self.subset = (
             {p.patient_id for p in pending} & self.goal.value
             if self.goal.type == GoalType.SUBSET

@@ -49,6 +49,8 @@ Médicos idénticos; el nivel de triage es un dato de entrada; duraciones fijas 
 - **Salida:**
   - `results.<alg>` con `status` (`optimal`, `approximate` o `limit_reached`), `weight`, `cost`, `closingCost`, `expanded`, `maxFrontier`, `ms`, `reopened`, `steps[]`, `leftOut[]`, `trace[]` y `limitAttempts[]`. Cada fila de `trace` es un nodo expandido con `id`, `parent`, `patient`, `attended`, `freeAt`, `isGoal`, `g`, `h`, `f` y `children[] { id, patient, g, h, f }`, los sucesores que generó; con `parent` y `children` se reconstruye el árbol de búsqueda;
   - además `baseline`, `reference`, `cost`, `sameCost`, `reductionPct`, `baselineGapPct` y `alerts[]`.
+  - `referenceKind` dice qué agenda se muestra: `optimal`, `approximate` (A\* ponderado), `anytime` o `baseline` (orden por gravedad).
+- **Si un algoritmo no termina** (`limit_reached`): devuelve la traza parcial del intento con ε = 1 y `anytime { nodeId, searchSteps, cost, lowerBound, steps[], leftOut[] }`. Es la agenda que sale de completar por triage el mejor nodo de la frontera; `searchSteps` son los pasos que eligió la búsqueda, `nodeId` es el nodo de la traza del que parte (−1 si salió de un intento ponderado) y `lowerBound` es la menor g + h de la frontera, una cota inferior del óptimo. Si esa agenda cuesta menos que el orden por gravedad, es la que se muestra (`referenceKind: anytime`).
 - **Pasos:** cada paso trae `{ patient, level, doctor, start, end, delay, penalty, afterGoal }`.
 
 **Errores:** siempre `{ code, message, field }`, también en 404 (`NOT_FOUND`), 405 (`METHOD_NOT_ALLOWED`) y 500 (`INTERNAL_ERROR`). Los errores de validación (`VALIDATION_ERROR`) y del dominio responden 422, con el mensaje en español.
@@ -98,7 +100,7 @@ Médicos idénticos; el nivel de triage es un dato de entrada; duraciones fijas 
 - `SEARCH_TIME_LIMIT_MS`: por algoritmo e intento; 0 = sin límite.
 - `FALLBACK_WEIGHTS`: JSON, por ejemplo `[1.5, 5]`.
 - `TRACE_LIMIT`: nodos expandidos que se devuelven en la traza si la petición no manda `traceLimit`.
-- `MAX_TRACE_LIMIT`: tope para `traceLimit` (20000 por defecto).
+- `MAX_TRACE_LIMIT`: tope para `traceLimit` (30000 por defecto).
 - `MAX_CSV_BYTES`.
 
 ## Postman

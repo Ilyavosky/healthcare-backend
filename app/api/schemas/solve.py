@@ -83,6 +83,15 @@ class AttemptOut(CamelModel):
     ms: float
 
 
+class AnytimeOut(CamelModel):
+    node_id: int
+    search_steps: int
+    cost: int
+    lower_bound: int
+    steps: list[StepOut]
+    left_out: list[StepOut]
+
+
 class AlgorithmResultOut(CamelModel):
     status: Literal["optimal", "approximate", "limit_reached"]
     weight: float
@@ -96,6 +105,7 @@ class AlgorithmResultOut(CamelModel):
     left_out: list[StepOut]
     trace: list[TraceRowOut]
     limit_attempts: list[AttemptOut]
+    anytime: AnytimeOut | None = None
 
 
 class BaselineOut(CamelModel):
@@ -107,6 +117,7 @@ class BaselineOut(CamelModel):
 
 class SolveResponse(CamelModel):
     reference: str
+    reference_kind: Literal["optimal", "approximate", "anytime", "baseline"]
     cost: int
     doctors: int
     results: dict[str, AlgorithmResultOut]

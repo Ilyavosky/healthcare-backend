@@ -278,7 +278,26 @@
           "        pm.expect(r.weight === 1).to.eql(r.status === \"optimal\");",
           "      }",
           "    });",
-          "    if (r.status === \"limit_reached\") continue;",
+          "    if (r.status === \"limit_reached\") {",
+          "      if (r.anytime) {",
+          "        pm.test(`[oráculo] ${name}: agenda anytime factible y con cota inferior válida`, () => {",
+          "          const v = validateSchedule(m, r.anytime.steps, r.anytime.leftOut, name + \" anytime\");",
+          "          pm.expect(v.errors, v.errors.join(\" | \")).to.eql([]);",
+          "          pm.expect(v.total).to.eql(r.anytime.cost);",
+          "          pm.expect(r.anytime.lowerBound).to.be.at.most(r.anytime.cost);",
+          "          if (exact !== null) {",
+          "            pm.expect(r.anytime.lowerBound).to.be.at.most(exact);",
+          "            pm.expect(r.anytime.cost).to.be.at.least(exact);",
+          "          }",
+          "        });",
+          "      }",
+          "      if (r.trace && r.trace.length) {",
+          "        pm.test(`[oráculo] ${name}: traza parcial con f = g + h`, () => {",
+          "          for (const row of r.trace) pm.expect(Math.abs(row.f - (row.g + row.h))).to.be.below(1e-6);",
+          "        });",
+          "      }",
+          "      continue;",
+          "    }",
           "    if (r.status === \"optimal\") optimalStatuses.push(r.cost);",
           "    pm.test(`[oráculo] ${name}: agenda factible, completa y que cumple la meta`, () => {",
           "      const v = validateSchedule(m, r.steps, r.leftOut, name);",
@@ -316,7 +335,12 @@
           "  });",
           "  pm.test(\"[oráculo] reference y cost coinciden con su agenda\", () => {",
           "    if (json.reference === \"baseline\") pm.expect(json.cost).to.eql(json.baseline.cost);",
-          "    else {",
+          "    else if (json.referenceKind === \"anytime\") {",
+          "      const r = results[json.reference];",
+          "      pm.expect(r.status).to.eql(\"limit_reached\");",
+          "      pm.expect(json.cost).to.eql(r.anytime.cost);",
+          "      pm.expect(json.cost).to.be.below(json.baseline.cost);",
+          "    } else {",
           "      pm.expect(results).to.have.property(json.reference);",
           "      pm.expect(json.cost).to.eql(results[json.reference].cost);",
           "      const finished = Object.values(results).filter(r => r.status !== \"limit_reached\");",
@@ -338,7 +362,7 @@
           "    } else pm.expect(json.baselineGapPct).to.eql(null);",
           "  });",
           "  pm.test(\"[oráculo] Alertas exactas según la agenda mostrada\", () => {",
-          "    const shown = json.reference === \"baseline\" ? json.baseline : results[json.reference];",
+          "    const shown = json.reference === \"baseline\" ? json.baseline : json.referenceKind === \"anytime\" ? results[json.reference].anytime : results[json.reference];",
           "    pm.expect(json.alerts).to.eql(expectedAlerts(m, shown.steps, shown.leftOut));",
           "  });",
           "  pm.test(\"[oráculo] doctors en la respuesta\", () => pm.expect(json.doctors).to.eql(m.doctors));",
@@ -757,7 +781,7 @@
                   "pm.test(\"ucs: estado permitido ['optimal', 'limit_reached']\", () => { pm.expect([\"optimal\", \"limit_reached\"]).to.include(json.results.ucs.status); });",
                   "pm.test(\"astar_simple: estado permitido ['optimal', 'approximate']\", () => { pm.expect([\"optimal\", \"approximate\"]).to.include(json.results.astar_simple.status); });",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate']\", () => { pm.expect([\"optimal\", \"approximate\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { for (const r of Object.values(json.results)) if (r.status === 'limit_reached' && Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(json.reference).to.eql('baseline'); });",
+                  "pm.test(\"Si nada termina, se muestra la base o la agenda anytime\", () => { if (Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });",
                   "pm.test(\"A* óptimo\", () => pm.expect(json.results.astar.status).to.eql(\"optimal\"));",
                   "pm.test(\"A* va directo a la meta (1 + 2 expansiones)\", () => pm.expect(json.results.astar.expanded).to.eql(3));",
                   "pm.test(\"ucs óptimo\", () => { pm.expect(json.results.ucs.status).to.eql(\"optimal\"); });",
@@ -817,7 +841,7 @@
                   "pm.test(\"ucs: estado permitido ['optimal', 'limit_reached']\", () => { pm.expect([\"optimal\", \"limit_reached\"]).to.include(json.results.ucs.status); });",
                   "pm.test(\"astar_simple: estado permitido ['optimal', 'approximate']\", () => { pm.expect([\"optimal\", \"approximate\"]).to.include(json.results.astar_simple.status); });",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate']\", () => { pm.expect([\"optimal\", \"approximate\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { for (const r of Object.values(json.results)) if (r.status === 'limit_reached' && Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(json.reference).to.eql('baseline'); });",
+                  "pm.test(\"Si nada termina, se muestra la base o la agenda anytime\", () => { if (Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });",
                   "pm.test(\"ucs óptimo\", () => { pm.expect(json.results.ucs.status).to.eql(\"optimal\"); });",
                   "pm.test(\"astar_simple óptimo\", () => { pm.expect(json.results.astar_simple.status).to.eql(\"optimal\"); });",
                   "pm.test(\"astar óptimo\", () => { pm.expect(json.results.astar.status).to.eql(\"optimal\"); });"
@@ -875,7 +899,7 @@
                   "pm.test(\"ucs: estado permitido ['optimal', 'limit_reached']\", () => { pm.expect([\"optimal\", \"limit_reached\"]).to.include(json.results.ucs.status); });",
                   "pm.test(\"astar_simple: estado permitido ['optimal', 'approximate']\", () => { pm.expect([\"optimal\", \"approximate\"]).to.include(json.results.astar_simple.status); });",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate']\", () => { pm.expect([\"optimal\", \"approximate\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { for (const r of Object.values(json.results)) if (r.status === 'limit_reached' && Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(json.reference).to.eql('baseline'); });",
+                  "pm.test(\"Si nada termina, se muestra la base o la agenda anytime\", () => { if (Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });",
                   "pm.test(\"ucs óptimo\", () => { pm.expect(json.results.ucs.status).to.eql(\"optimal\"); });",
                   "pm.test(\"astar_simple óptimo\", () => { pm.expect(json.results.astar_simple.status).to.eql(\"optimal\"); });",
                   "pm.test(\"astar óptimo\", () => { pm.expect(json.results.astar.status).to.eql(\"optimal\"); });"
@@ -933,7 +957,7 @@
                   "pm.test(\"ucs: estado permitido ['optimal', 'limit_reached']\", () => { pm.expect([\"optimal\", \"limit_reached\"]).to.include(json.results.ucs.status); });",
                   "pm.test(\"astar_simple: estado permitido ['optimal', 'approximate']\", () => { pm.expect([\"optimal\", \"approximate\"]).to.include(json.results.astar_simple.status); });",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate']\", () => { pm.expect([\"optimal\", \"approximate\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { for (const r of Object.values(json.results)) if (r.status === 'limit_reached' && Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(json.reference).to.eql('baseline'); });",
+                  "pm.test(\"Si nada termina, se muestra la base o la agenda anytime\", () => { if (Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });",
                   "pm.test(\"ucs óptimo\", () => { pm.expect(json.results.ucs.status).to.eql(\"optimal\"); });",
                   "pm.test(\"astar_simple óptimo\", () => { pm.expect(json.results.astar_simple.status).to.eql(\"optimal\"); });",
                   "pm.test(\"astar óptimo\", () => { pm.expect(json.results.astar.status).to.eql(\"optimal\"); });"
@@ -991,7 +1015,7 @@
                   "pm.test(\"ucs: estado permitido ['optimal', 'limit_reached']\", () => { pm.expect([\"optimal\", \"limit_reached\"]).to.include(json.results.ucs.status); });",
                   "pm.test(\"astar_simple: estado permitido ['optimal', 'approximate']\", () => { pm.expect([\"optimal\", \"approximate\"]).to.include(json.results.astar_simple.status); });",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate']\", () => { pm.expect([\"optimal\", \"approximate\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { for (const r of Object.values(json.results)) if (r.status === 'limit_reached' && Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(json.reference).to.eql('baseline'); });",
+                  "pm.test(\"Si nada termina, se muestra la base o la agenda anytime\", () => { if (Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });",
                   "pm.test(\"ucs óptimo\", () => { pm.expect(json.results.ucs.status).to.eql(\"optimal\"); });",
                   "pm.test(\"astar_simple óptimo\", () => { pm.expect(json.results.astar_simple.status).to.eql(\"optimal\"); });",
                   "pm.test(\"astar óptimo\", () => { pm.expect(json.results.astar.status).to.eql(\"optimal\"); });"
@@ -1049,7 +1073,7 @@
                   "pm.test(\"ucs: estado permitido ['optimal', 'limit_reached']\", () => { pm.expect([\"optimal\", \"limit_reached\"]).to.include(json.results.ucs.status); });",
                   "pm.test(\"astar_simple: estado permitido ['optimal', 'approximate']\", () => { pm.expect([\"optimal\", \"approximate\"]).to.include(json.results.astar_simple.status); });",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate']\", () => { pm.expect([\"optimal\", \"approximate\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { for (const r of Object.values(json.results)) if (r.status === 'limit_reached' && Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(json.reference).to.eql('baseline'); });",
+                  "pm.test(\"Si nada termina, se muestra la base o la agenda anytime\", () => { if (Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });",
                   "pm.test(\"ucs óptimo\", () => { pm.expect(json.results.ucs.status).to.eql(\"optimal\"); });",
                   "pm.test(\"astar_simple óptimo\", () => { pm.expect(json.results.astar_simple.status).to.eql(\"optimal\"); });",
                   "pm.test(\"astar óptimo\", () => { pm.expect(json.results.astar.status).to.eql(\"optimal\"); });"
@@ -1107,7 +1131,7 @@
                   "pm.test(\"ucs: estado permitido ['optimal', 'limit_reached']\", () => { pm.expect([\"optimal\", \"limit_reached\"]).to.include(json.results.ucs.status); });",
                   "pm.test(\"astar_simple: estado permitido ['optimal', 'approximate']\", () => { pm.expect([\"optimal\", \"approximate\"]).to.include(json.results.astar_simple.status); });",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate']\", () => { pm.expect([\"optimal\", \"approximate\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { for (const r of Object.values(json.results)) if (r.status === 'limit_reached' && Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(json.reference).to.eql('baseline'); });",
+                  "pm.test(\"Si nada termina, se muestra la base o la agenda anytime\", () => { if (Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });",
                   "pm.test(\"ucs óptimo\", () => { pm.expect(json.results.ucs.status).to.eql(\"optimal\"); });",
                   "pm.test(\"astar_simple óptimo\", () => { pm.expect(json.results.astar_simple.status).to.eql(\"optimal\"); });",
                   "pm.test(\"astar óptimo\", () => { pm.expect(json.results.astar.status).to.eql(\"optimal\"); });"
@@ -1164,7 +1188,7 @@
                   "const json = pm.response.json();",
                   "pm.test(\"ucs: estado permitido ['optimal', 'limit_reached']\", () => { pm.expect([\"optimal\", \"limit_reached\"]).to.include(json.results.ucs.status); });",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate']\", () => { pm.expect([\"optimal\", \"approximate\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { for (const r of Object.values(json.results)) if (r.status === 'limit_reached' && Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(json.reference).to.eql('baseline'); });"
+                  "pm.test(\"Si nada termina, se muestra la base o la agenda anytime\", () => { if (Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });"
                 ]
               }
             }
@@ -1218,7 +1242,7 @@
                   "const json = pm.response.json();",
                   "pm.test(\"astar_simple: estado permitido ['optimal', 'approximate']\", () => { pm.expect([\"optimal\", \"approximate\"]).to.include(json.results.astar_simple.status); });",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate']\", () => { pm.expect([\"optimal\", \"approximate\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { for (const r of Object.values(json.results)) if (r.status === 'limit_reached' && Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(json.reference).to.eql('baseline'); });"
+                  "pm.test(\"Si nada termina, se muestra la base o la agenda anytime\", () => { if (Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });"
                 ]
               }
             }
@@ -1271,7 +1295,7 @@
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate']\", () => { pm.expect([\"optimal\", \"approximate\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { for (const r of Object.values(json.results)) if (r.status === 'limit_reached' && Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(json.reference).to.eql('baseline'); });"
+                  "pm.test(\"Si nada termina, se muestra la base o la agenda anytime\", () => { if (Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });"
                 ]
               }
             }
@@ -1324,7 +1348,7 @@
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate', 'limit_reached']\", () => { pm.expect([\"optimal\", \"approximate\", \"limit_reached\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { for (const r of Object.values(json.results)) if (r.status === 'limit_reached' && Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(json.reference).to.eql('baseline'); });"
+                  "pm.test(\"Si nada termina, se muestra la base o la agenda anytime\", () => { if (Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });"
                 ]
               }
             }
@@ -1377,7 +1401,7 @@
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate', 'limit_reached']\", () => { pm.expect([\"optimal\", \"approximate\", \"limit_reached\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { for (const r of Object.values(json.results)) if (r.status === 'limit_reached' && Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(json.reference).to.eql('baseline'); });"
+                  "pm.test(\"Si nada termina, se muestra la base o la agenda anytime\", () => { if (Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });"
                 ]
               }
             }
@@ -1430,7 +1454,7 @@
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate', 'limit_reached']\", () => { pm.expect([\"optimal\", \"approximate\", \"limit_reached\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { for (const r of Object.values(json.results)) if (r.status === 'limit_reached' && Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(json.reference).to.eql('baseline'); });"
+                  "pm.test(\"Si nada termina, se muestra la base o la agenda anytime\", () => { if (Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });"
                 ]
               }
             }
@@ -1483,7 +1507,7 @@
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate', 'limit_reached']\", () => { pm.expect([\"optimal\", \"approximate\", \"limit_reached\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { for (const r of Object.values(json.results)) if (r.status === 'limit_reached' && Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(json.reference).to.eql('baseline'); });"
+                  "pm.test(\"Si nada termina, se muestra la base o la agenda anytime\", () => { if (Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });"
                 ]
               }
             }
@@ -1536,7 +1560,7 @@
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate']\", () => { pm.expect([\"optimal\", \"approximate\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { for (const r of Object.values(json.results)) if (r.status === 'limit_reached' && Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(json.reference).to.eql('baseline'); });",
+                  "pm.test(\"Si nada termina, se muestra la base o la agenda anytime\", () => { if (Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });",
                   "pm.test(\"A* óptimo\", () => pm.expect(json.results.astar.status).to.eql(\"optimal\"));",
                   "pm.test(\"A* va directo a la meta (500 + 2 expansiones)\", () => pm.expect(json.results.astar.expanded).to.eql(502));"
                 ]
@@ -1591,7 +1615,7 @@
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate']\", () => { pm.expect([\"optimal\", \"approximate\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { for (const r of Object.values(json.results)) if (r.status === 'limit_reached' && Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(json.reference).to.eql('baseline'); });",
+                  "pm.test(\"Si nada termina, se muestra la base o la agenda anytime\", () => { if (Object.values(json.results).every(x => x.status === 'limit_reached')) pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });",
                   "pm.test(\"A* óptimo\", () => pm.expect(json.results.astar.status).to.eql(\"optimal\"));",
                   "pm.test(\"A* va directo a la meta (1000 + 2 expansiones)\", () => pm.expect(json.results.astar.expanded).to.eql(1002));"
                 ]
@@ -1651,8 +1675,8 @@
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate', 'limit_reached']\", () => { pm.expect([\"optimal\", \"approximate\", \"limit_reached\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const shown = json.reference === 'baseline' ? json.baseline : json.results[json.reference]; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(json.reference).to.eql('baseline'); });"
+                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const r = json.results[json.reference]; const shown = json.reference === 'baseline' ? json.baseline : json.referenceKind === 'anytime' ? r.anytime : r; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
+                  "pm.test(\"Si A* no termina, se muestra la base o la agenda anytime\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });"
                 ]
               }
             }
@@ -1705,8 +1729,8 @@
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate', 'limit_reached']\", () => { pm.expect([\"optimal\", \"approximate\", \"limit_reached\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const shown = json.reference === 'baseline' ? json.baseline : json.results[json.reference]; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(json.reference).to.eql('baseline'); });"
+                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const r = json.results[json.reference]; const shown = json.reference === 'baseline' ? json.baseline : json.referenceKind === 'anytime' ? r.anytime : r; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
+                  "pm.test(\"Si A* no termina, se muestra la base o la agenda anytime\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });"
                 ]
               }
             }
@@ -1759,8 +1783,8 @@
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate', 'limit_reached']\", () => { pm.expect([\"optimal\", \"approximate\", \"limit_reached\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const shown = json.reference === 'baseline' ? json.baseline : json.results[json.reference]; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(json.reference).to.eql('baseline'); });"
+                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const r = json.results[json.reference]; const shown = json.reference === 'baseline' ? json.baseline : json.referenceKind === 'anytime' ? r.anytime : r; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
+                  "pm.test(\"Si A* no termina, se muestra la base o la agenda anytime\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });"
                 ]
               }
             }
@@ -1813,8 +1837,8 @@
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate', 'limit_reached']\", () => { pm.expect([\"optimal\", \"approximate\", \"limit_reached\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const shown = json.reference === 'baseline' ? json.baseline : json.results[json.reference]; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(json.reference).to.eql('baseline'); });"
+                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const r = json.results[json.reference]; const shown = json.reference === 'baseline' ? json.baseline : json.referenceKind === 'anytime' ? r.anytime : r; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
+                  "pm.test(\"Si A* no termina, se muestra la base o la agenda anytime\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });"
                 ]
               }
             }
@@ -1867,8 +1891,8 @@
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate', 'limit_reached']\", () => { pm.expect([\"optimal\", \"approximate\", \"limit_reached\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const shown = json.reference === 'baseline' ? json.baseline : json.results[json.reference]; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(json.reference).to.eql('baseline'); });"
+                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const r = json.results[json.reference]; const shown = json.reference === 'baseline' ? json.baseline : json.referenceKind === 'anytime' ? r.anytime : r; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
+                  "pm.test(\"Si A* no termina, se muestra la base o la agenda anytime\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });"
                 ]
               }
             }
@@ -1921,8 +1945,8 @@
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate', 'limit_reached']\", () => { pm.expect([\"optimal\", \"approximate\", \"limit_reached\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const shown = json.reference === 'baseline' ? json.baseline : json.results[json.reference]; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(json.reference).to.eql('baseline'); });"
+                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const r = json.results[json.reference]; const shown = json.reference === 'baseline' ? json.baseline : json.referenceKind === 'anytime' ? r.anytime : r; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
+                  "pm.test(\"Si A* no termina, se muestra la base o la agenda anytime\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });"
                 ]
               }
             }
@@ -1975,8 +1999,8 @@
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate', 'limit_reached']\", () => { pm.expect([\"optimal\", \"approximate\", \"limit_reached\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const shown = json.reference === 'baseline' ? json.baseline : json.results[json.reference]; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(json.reference).to.eql('baseline'); });"
+                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const r = json.results[json.reference]; const shown = json.reference === 'baseline' ? json.baseline : json.referenceKind === 'anytime' ? r.anytime : r; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
+                  "pm.test(\"Si A* no termina, se muestra la base o la agenda anytime\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });"
                 ]
               }
             }
@@ -2029,8 +2053,8 @@
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate', 'limit_reached']\", () => { pm.expect([\"optimal\", \"approximate\", \"limit_reached\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const shown = json.reference === 'baseline' ? json.baseline : json.results[json.reference]; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(json.reference).to.eql('baseline'); });"
+                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const r = json.results[json.reference]; const shown = json.reference === 'baseline' ? json.baseline : json.referenceKind === 'anytime' ? r.anytime : r; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
+                  "pm.test(\"Si A* no termina, se muestra la base o la agenda anytime\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });"
                 ]
               }
             }
@@ -2083,8 +2107,8 @@
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate', 'limit_reached']\", () => { pm.expect([\"optimal\", \"approximate\", \"limit_reached\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const shown = json.reference === 'baseline' ? json.baseline : json.results[json.reference]; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(json.reference).to.eql('baseline'); });"
+                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const r = json.results[json.reference]; const shown = json.reference === 'baseline' ? json.baseline : json.referenceKind === 'anytime' ? r.anytime : r; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
+                  "pm.test(\"Si A* no termina, se muestra la base o la agenda anytime\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });"
                 ]
               }
             }
@@ -2137,8 +2161,8 @@
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate', 'limit_reached']\", () => { pm.expect([\"optimal\", \"approximate\", \"limit_reached\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const shown = json.reference === 'baseline' ? json.baseline : json.results[json.reference]; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(json.reference).to.eql('baseline'); });"
+                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const r = json.results[json.reference]; const shown = json.reference === 'baseline' ? json.baseline : json.referenceKind === 'anytime' ? r.anytime : r; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
+                  "pm.test(\"Si A* no termina, se muestra la base o la agenda anytime\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });"
                 ]
               }
             }
@@ -2191,8 +2215,8 @@
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate', 'limit_reached']\", () => { pm.expect([\"optimal\", \"approximate\", \"limit_reached\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const shown = json.reference === 'baseline' ? json.baseline : json.results[json.reference]; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(json.reference).to.eql('baseline'); });"
+                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const r = json.results[json.reference]; const shown = json.reference === 'baseline' ? json.baseline : json.referenceKind === 'anytime' ? r.anytime : r; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
+                  "pm.test(\"Si A* no termina, se muestra la base o la agenda anytime\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });"
                 ]
               }
             }
@@ -2245,8 +2269,8 @@
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate', 'limit_reached']\", () => { pm.expect([\"optimal\", \"approximate\", \"limit_reached\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const shown = json.reference === 'baseline' ? json.baseline : json.results[json.reference]; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(json.reference).to.eql('baseline'); });"
+                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const r = json.results[json.reference]; const shown = json.reference === 'baseline' ? json.baseline : json.referenceKind === 'anytime' ? r.anytime : r; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
+                  "pm.test(\"Si A* no termina, se muestra la base o la agenda anytime\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });"
                 ]
               }
             }
@@ -2299,8 +2323,8 @@
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate', 'limit_reached']\", () => { pm.expect([\"optimal\", \"approximate\", \"limit_reached\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const shown = json.reference === 'baseline' ? json.baseline : json.results[json.reference]; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(json.reference).to.eql('baseline'); });"
+                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const r = json.results[json.reference]; const shown = json.reference === 'baseline' ? json.baseline : json.referenceKind === 'anytime' ? r.anytime : r; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
+                  "pm.test(\"Si A* no termina, se muestra la base o la agenda anytime\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });"
                 ]
               }
             }
@@ -2353,8 +2377,8 @@
                   "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
                   "pm.test(\"astar: estado permitido ['optimal', 'approximate', 'limit_reached']\", () => { pm.expect([\"optimal\", \"approximate\", \"limit_reached\"]).to.include(json.results.astar.status); });",
-                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const shown = json.reference === 'baseline' ? json.baseline : json.results[json.reference]; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
-                  "pm.test(\"Si A* no termina, se muestra la base\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(json.reference).to.eql('baseline'); });"
+                  "pm.test(\"Siempre hay agenda completa\", () => { pm.expect(json.cost).to.be.a('number'); const r = json.results[json.reference]; const shown = json.reference === 'baseline' ? json.baseline : json.referenceKind === 'anytime' ? r.anytime : r; pm.expect(shown.steps.length + shown.leftOut.length).to.eql(json.baseline.steps.length + json.baseline.leftOut.length); });",
+                  "pm.test(\"Si A* no termina, se muestra la base o la agenda anytime\", () => { if (json.results.astar.status === 'limit_reached') pm.expect(['baseline', 'anytime']).to.include(json.referenceKind); });"
                 ]
               }
             }
