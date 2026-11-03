@@ -82,7 +82,3 @@ Desde la terminal, con el servidor local encendido:
 ```bash
 npx newman run postman/healthcare-pruebas.postman_collection.json -e postman/healthcare.postman_environment.json
 ```
-
-## Despliegue en Railway
-
-Conecta el repositorio en Railway. `railway.toml` ya define el comando de arranque y la verificación en `/api/health`. En la pestaña *Variables* del servicio agrega las mismas variables de `.env`, con `ALLOWED_ORIGIN` igual a la URL del frontend.
